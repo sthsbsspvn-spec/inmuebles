@@ -307,12 +307,26 @@ function renderDetalle(){
   const inm=inmuebles.find(i=>i.id===id);
   const el=document.getElementById('det-content');
   if(!inm){el.innerHTML='<div class="empty">Selecciona un inmueble arriba</div>';return;}
-  const baseRent=inm.subasta||inm.valor;
-  const rent=inm.alquiler&&baseRent?((inm.alquiler*12/baseRent)*100).toFixed(1)+'%':'—';
-  const rentLabel=inm.subasta?'Rentabilidad bruta (s/ subasta)':'Rentabilidad bruta (s/ valor)';
+
   const gasInm=gastos.filter(g=>g.inmueble_id===id);
   const cobInm=cobros.filter(c=>c.inmueble_id===id);
   const refInm=reformas.filter(r=>r.inmueble_id===id);
+
+  // Categorías que suman a la inversión inicial
+  const CATS_INVERSION = ['Reforma','Notaría','Gestoría','ITP/AJD','Registro'];
+  // Categorías recurrentes que restan rentabilidad neta
+  const CATS_RECURRENTES = ['IBI','Comunidad','Seguro','Electricidad','Agua','Gas','Suministros','Mantenimiento'];
+
+  const gastosInversion = gasInm.filter(g=>CATS_INVERSION.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
+  const gastosRecurrentes = gasInm.filter(g=>CATS_RECURRENTES.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
+  const costeReformas = refInm.reduce((s,r)=>s+(parseFloat(r.coste_real||r.presupuesto)||0),0);
+
+  const inversion = (inm.subasta||inm.valor||0) + gastosInversion + costeReformas;
+  const alquilerAnual = (inm.alquiler||0) * 12;
+
+  const rentBruta = inversion>0 && alquilerAnual>0 ? (alquilerAnual/inversion*100).toFixed(1)+'%' : '—';
+  const rentNeta = inversion>0 && alquilerAnual>0 ? ((alquilerAnual-gastosRecurrentes)/inversion*100).toFixed(1)+'%' : '—';
+
   const inmd=JSON.stringify(inm).replace(/'/g,'&#39;').replace(/"/g,'&quot;');
   el.innerHTML=`
     <div class="card">
@@ -325,7 +339,22 @@ function renderDetalle(){
     </div>
     <div class="card">
       <div class="sh"><div class="ct" style="margin-bottom:0">Financiero</div><button class="btn-sm" onclick="openModal('financiero',${JSON.stringify(inm).replace(/"/g,'&quot;')})">✏️ Editar</button></div>
-      ${[['Precio subasta',EUR(inm.subasta),'var(--gold)'],['Valor actual',EUR(inm.valor),'var(--green)'],['Deuda hipotecaria',EUR(inm.deuda),'var(--red)'],['Patrimonio neto',EUR((inm.valor||0)-(inm.deuda||0)),'var(--blue)'],['Alquiler mensual',EUR(inm.alquiler),'var(--purple)'],[rentLabel,rent,'var(--amber)']].map(([l,v,c])=>`<div class="srow"><span class="sl">${l}</span><strong style="color:${c}">${v}</strong></div>`).join('')}
+      ${[
+        ['Precio subasta',EUR(inm.subasta),'var(--gold)'],
+        ['Gastos adquisición+reforma',EUR(gastosInversion+costeReformas),'var(--amber)'],
+        ['Inversión total',EUR(inversion),'var(--gold)'],
+        ['Valor actual',EUR(inm.valor),'var(--green)'],
+        ['Deuda hipotecaria',EUR(inm.deuda),'var(--red)'],
+        ['Patrimonio neto',EUR((inm.valor||0)-(inm.deuda||0)),'var(--blue)'],
+        ['Alquiler mensual',EUR(inm.alquiler),'var(--purple)'],
+        ['Gastos recurrentes/año',EUR(gastosRecurrentes),'var(--red)'],
+        ['Rentabilidad bruta',rentBruta,'var(--amber)'],
+        ['Rentabilidad neta',rentNeta,'var(--green)'],
+      ].map(([l,v,c])=>`<div class="srow"><span class="sl">${l}</span><strong style="color:${c}">${v}</strong></div>`).join('')}
+      <div style="margin-top:10px;font-size:10px;color:var(--gray);line-height:1.5">
+        Bruta = Alquiler anual ÷ Inversión total<br>
+        Neta = (Alquiler anual − Gastos recurrentes) ÷ Inversión total
+      </div>
     </div>
     <div class="card">
       <div class="sh"><div class="st">Gastos &amp; Facturas</div><button class="btn-sm" onclick="openModal('gasto',{inmueble_id:${id}})">+ Añadir</button></div>
@@ -422,7 +451,17 @@ function renderResumen(){
   const tC=cobros.reduce((s,c)=>s+(parseFloat(c.importe)||0),0);
   const ciudades={};
   act.forEach(i=>{ciudades[i.ciudad]=(ciudades[i.ciudad]||0)+1;});
-  const topR=inmuebles.filter(i=>i.alquiler&&(i.subasta||i.valor)).map(i=>({...i,r:(i.alquiler*12/(i.subasta||i.valor)*100)})).sort((a,b)=>b.r-a.r).slice(0,5);
+  const CATS_INV=['Reforma','Notaría','Gestoría','ITP/AJD','Registro'];
+  const CATS_REC=['IBI','Comunidad','Seguro','Electricidad','Agua','Gas','Suministros','Mantenimiento'];
+  const topR=inmuebles.filter(i=>i.alquiler).map(i=>{
+    const gInv=gastos.filter(g=>g.inmueble_id===i.id&&CATS_INV.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
+    const gRec=gastos.filter(g=>g.inmueble_id===i.id&&CATS_REC.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
+    const rCost=reformas.filter(r=>r.inmueble_id===i.id).reduce((s,r)=>s+(parseFloat(r.coste_real||r.presupuesto)||0),0);
+    const inv=(i.subasta||i.valor||0)+gInv+rCost;
+    const rentB=inv>0?(i.alquiler*12/inv*100):0;
+    const rentN=inv>0?((i.alquiler*12-gRec)/inv*100):0;
+    return {...i,rentB,rentN,inv};
+  }).filter(i=>i.inv>0).sort((a,b)=>b.rentN-a.rentN).slice(0,5);
   document.getElementById('resumen').innerHTML=`
     <div class="card"><div class="ct">Patrimonio</div>
       ${[['Valor cartera',EUR(tV),'var(--green)'],['Deuda total',EUR(tD),'var(--red)'],['Patrimonio neto',EUR(tV-tD),'var(--blue)']].map(([l,v,c])=>`<div class="srow"><span class="sl">${l}</span><strong style="color:${c}">${v}</strong></div>`).join('')}
@@ -436,8 +475,8 @@ function renderResumen(){
     <div class="card"><div class="ct">Por ciudad</div>
       ${Object.entries(ciudades).sort((a,b)=>b[1]-a[1]).map(([c,n])=>`<div class="srow"><span class="sl">${c}</span><strong style="color:var(--gold)">${n} inmueble${n>1?'s':''}</strong></div>`).join('')}
     </div>
-    <div class="card"><div class="ct">Top rentabilidad bruta</div>
-      ${topR.map(i=>`<div class="srow"><span class="sl" style="font-size:12px">${i.nombre}</span><strong style="color:var(--green)">${i.r.toFixed(1)}%</strong></div>`).join('')}
+    <div class="card"><div class="ct">Top rentabilidad neta real</div>
+      ${topR.map(i=>`<div class="srow"><span class="sl" style="font-size:12px">${i.nombre}</span><div style="text-align:right"><strong style="color:var(--green)">${i.rentN.toFixed(1)}% neta</strong><br><span style="font-size:10px;color:var(--amber)">${i.rentB.toFixed(1)}% bruta</span></div></div>`).join('')}
     </div>`;
 }
 
@@ -487,7 +526,7 @@ function mGasto(d){
     <div class="modal-title">${d.id?'Editar gasto':'Nuevo gasto / factura'}</div>
     ${ff('Inmueble',`<select id="finm"><option value="">— General —</option>${opts}</select>`)}
     <div class="g2">
-      ${ff('Categoría',fs('fcat',d.categoria||'',['','IBI','Comunidad','Seguro','Electricidad','Agua','Gas','Suministros','Mantenimiento','Gestoría','Notaría','Hipoteca','Reforma','Otros']))}
+      ${ff('Categoría',fs('fcat',d.categoria||'',['','— ADQUISICIÓN —','Notaría','Gestoría','ITP/AJD','Registro','— REFORMA —','Reforma','— RECURRENTES —','IBI','Comunidad','Seguro','Electricidad','Agua','Gas','Suministros','Mantenimiento','— OTROS —','Hipoteca','Otros']))}
       ${ff('Importe (€)',fi('fimp',d.importe,'number'))}
       ${ff('Fecha',fi('ffec',d.fecha,'date'))}
       ${ff('Proveedor',fi('fpro',d.proveedor,'text','Empresa o persona'))}
