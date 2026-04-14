@@ -281,8 +281,12 @@ function renderListaInm() {
         <span style="font-weight:700;color:var(--green);font-size:13px">${i.alquiler?EUR(i.alquiler)+'/mes':'—'}</span>
       </div>
       <div style="display:flex;justify-content:space-between;margin-top:6px">
-        <span style="font-size:11px;color:var(--gray)">Valor: <strong style="color:var(--gold)">${EUR(i.valor)}</strong></span>
+        <span style="font-size:11px;color:var(--gray)">Subasta: <strong style="color:var(--gold)">${i.subasta?EUR(i.subasta):'—'}</strong></span>
         <span style="font-size:11px;color:var(--gray)">Deuda: <strong style="color:${i.deuda?'var(--red)':'var(--gray)'}">${i.deuda?EUR(i.deuda):'—'}</strong></span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:4px">
+        <span style="font-size:11px;color:var(--gray)">Valor: <strong style="color:var(--green)">${EUR(i.valor)}</strong></span>
+        ${i.alquiler&&(i.subasta||i.valor)?`<span style="font-size:11px;color:var(--gray)">Rent.: <strong style="color:var(--amber)">${((i.alquiler*12/(i.subasta||i.valor))*100).toFixed(1)}%</strong></span>`:''}
       </div>
     </div>`).join('');
 }
@@ -303,7 +307,9 @@ function renderDetalle(){
   const inm=inmuebles.find(i=>i.id===id);
   const el=document.getElementById('det-content');
   if(!inm){el.innerHTML='<div class="empty">Selecciona un inmueble arriba</div>';return;}
-  const rent=inm.alquiler&&inm.valor?((inm.alquiler*12/inm.valor)*100).toFixed(1)+'%':'—';
+  const baseRent=inm.subasta||inm.valor;
+  const rent=inm.alquiler&&baseRent?((inm.alquiler*12/baseRent)*100).toFixed(1)+'%':'—';
+  const rentLabel=inm.subasta?'Rentabilidad bruta (s/ subasta)':'Rentabilidad bruta (s/ valor)';
   const gasInm=gastos.filter(g=>g.inmueble_id===id);
   const cobInm=cobros.filter(c=>c.inmueble_id===id);
   const refInm=reformas.filter(r=>r.inmueble_id===id);
@@ -318,8 +324,8 @@ function renderDetalle(){
       <button class="btn-sm" style="margin-top:12px" onclick='editInm(${inmd})'>✏️ Editar ficha</button>
     </div>
     <div class="card">
-      <div class="ct">Financiero</div>
-      ${[['Precio subasta',EUR(inm.subasta),'var(--gold)'],['Valor actual',EUR(inm.valor),'var(--green)'],['Deuda hipotecaria',EUR(inm.deuda),'var(--red)'],['Patrimonio neto',EUR((inm.valor||0)-(inm.deuda||0)),'var(--blue)'],['Alquiler mensual',EUR(inm.alquiler),'var(--purple)'],['Rentabilidad bruta',rent,'var(--amber)']].map(([l,v,c])=>`<div class="srow"><span class="sl">${l}</span><strong style="color:${c}">${v}</strong></div>`).join('')}
+      <div class="sh"><div class="ct" style="margin-bottom:0">Financiero</div><button class="btn-sm" onclick="openModal('financiero',${JSON.stringify(inm).replace(/"/g,'&quot;')})">✏️ Editar</button></div>
+      ${[['Precio subasta',EUR(inm.subasta),'var(--gold)'],['Valor actual',EUR(inm.valor),'var(--green)'],['Deuda hipotecaria',EUR(inm.deuda),'var(--red)'],['Patrimonio neto',EUR((inm.valor||0)-(inm.deuda||0)),'var(--blue)'],['Alquiler mensual',EUR(inm.alquiler),'var(--purple)'],[rentLabel,rent,'var(--amber)']].map(([l,v,c])=>`<div class="srow"><span class="sl">${l}</span><strong style="color:${c}">${v}</strong></div>`).join('')}
     </div>
     <div class="card">
       <div class="sh"><div class="st">Gastos &amp; Facturas</div><button class="btn-sm" onclick="openModal('gasto',{inmueble_id:${id}})">+ Añadir</button></div>
@@ -416,7 +422,7 @@ function renderResumen(){
   const tC=cobros.reduce((s,c)=>s+(parseFloat(c.importe)||0),0);
   const ciudades={};
   act.forEach(i=>{ciudades[i.ciudad]=(ciudades[i.ciudad]||0)+1;});
-  const topR=inmuebles.filter(i=>i.alquiler&&i.valor).map(i=>({...i,r:(i.alquiler*12/i.valor*100)})).sort((a,b)=>b.r-a.r).slice(0,5);
+  const topR=inmuebles.filter(i=>i.alquiler&&(i.subasta||i.valor)).map(i=>({...i,r:(i.alquiler*12/(i.subasta||i.valor)*100)})).sort((a,b)=>b.r-a.r).slice(0,5);
   document.getElementById('resumen').innerHTML=`
     <div class="card"><div class="ct">Patrimonio</div>
       ${[['Valor cartera',EUR(tV),'var(--green)'],['Deuda total',EUR(tD),'var(--red)'],['Patrimonio neto',EUR(tV-tD),'var(--blue)']].map(([l,v,c])=>`<div class="srow"><span class="sl">${l}</span><strong style="color:${c}">${v}</strong></div>`).join('')}
@@ -444,7 +450,7 @@ function showTab(t){
 }
 
 // ── MODAL ─────────────────────────────────────────────────────────────────────
-function openModal(type,data){ document.getElementById('mov').classList.remove('hidden'); if(type==='inmueble') mInm(data); else if(type==='gasto') mGasto(data); else if(type==='reforma') mReforma(data); else if(type==='cobro') mCobro(data); }
+function openModal(type,data){ document.getElementById('mov').classList.remove('hidden'); if(type==='inmueble') mInm(data); else if(type==='gasto') mGasto(data); else if(type==='reforma') mReforma(data); else if(type==='cobro') mCobro(data); else if(type==='financiero') mFinanciero(data); }
 function closeModal(){ document.getElementById('mov').classList.add('hidden'); }
 
 const fi=(id,v,type='text',ph='')=>`<input id="${id}" type="${type}" value="${v||''}" placeholder="${ph}">`;
@@ -525,6 +531,62 @@ function mReforma(d){
     </div>`;
 }
 
+function mFinanciero(d){
+  document.getElementById('mc').innerHTML=`
+    <div class="modal-title">💰 Editar datos financieros</div>
+    <div style="font-size:11px;color:var(--gray);margin-bottom:14px">${d.nombre}</div>
+    ${ff('Precio subasta (€)',fi('fsub',d.subasta,'number','Precio pagado en subasta'))}
+    ${ff('Valor actual de mercado (€)',fi('fval',d.valor,'number','Tasación actual'))}
+    ${ff('Deuda hipotecaria (€)',fi('fdeu',d.deuda,'number','Saldo pendiente hipoteca'))}
+    ${ff('Alquiler mensual (€)',fi('falq',d.alquiler,'number','Renta mensual actual'))}
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px">
+      <div style="font-size:9px;color:var(--gold2);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">Vista previa rentabilidad</div>
+      <div id="rent-preview" style="font-size:13px;color:var(--amber)">Introduce los valores para calcular</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-s" onclick="closeModal()">Cancelar</button>
+      <button class="btn-p" onclick="saveFinanciero(${d.id})">💾 Guardar</button>
+    </div>`;
+  // Live preview
+  ['fsub','fval','fdeu','falq'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('input', updateRentPreview);
+  });
+  updateRentPreview();
+}
+
+function updateRentPreview(){
+  const sub=parseFloat(document.getElementById('fsub')?.value)||0;
+  const val=parseFloat(document.getElementById('fval')?.value)||0;
+  const deu=parseFloat(document.getElementById('fdeu')?.value)||0;
+  const alq=parseFloat(document.getElementById('falq')?.value)||0;
+  const base=sub||val;
+  const el=document.getElementById('rent-preview');
+  if(!el) return;
+  if(alq&&base){
+    const rent=(alq*12/base*100).toFixed(1);
+    const neto=val-deu;
+    el.innerHTML=`Rentabilidad bruta: <strong style="color:var(--amber);font-size:16px">${rent}%</strong> (s/ ${sub?'subasta':'valor'})<br><span style="color:var(--blue);font-size:12px">Patrimonio neto: ${EUR(neto)}</span>`;
+  } else {
+    el.textContent='Introduce los valores para calcular';
+  }
+}
+
+async function saveFinanciero(id){
+  const row={
+    subasta: parseFloat(document.getElementById('fsub').value)||null,
+    valor: parseFloat(document.getElementById('fval').value)||null,
+    deuda: parseFloat(document.getElementById('fdeu').value)||0,
+    alquiler: parseFloat(document.getElementById('falq').value)||0,
+  };
+  const {error}=await db.from('inmuebles').update(row).eq('id',id);
+  if(error){ toast('Error: '+error.message,false); return; }
+  toast('✅ Datos financieros actualizados');
+  closeModal();
+  await loadInm();
+  renderAll();
+  document.getElementById('det-sel').value=id;
+  renderDetalle();
+}
 function mCobro(d){
   const opts=inmuebles.map(i=>`<option value="${i.id}"${i.id==d.inmueble_id?' selected':''}>${i.nombre}</option>`).join('');
   document.getElementById('mc').innerHTML=`
