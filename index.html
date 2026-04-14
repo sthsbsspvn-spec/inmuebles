@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>DelSanto & Gos — Gestión Inmobiliaria</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --bg:#0f1117; --bg2:#1a1f2e; --bg3:#13161f; --border:#2a2f3e;
+  --gold:#e8d5a3; --gold2:#8b7355; --green:#4ade80; --red:#f87171;
+  --blue:#60a5fa; --purple:#a78bfa; --amber:#fbbf24; --gray:#6b7280; --text:#e8e4dc;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Georgia,serif;background:var(--bg);color:var(--text);min-height:100vh;}
+
+.header{background:linear-gradient(135deg,#1a1f2e,#0f1117);border-bottom:1px solid var(--border);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;}
+.h-left .h-sub{font-size:9px;letter-spacing:3px;color:var(--gold2);text-transform:uppercase;}
+.h-left .h-title{font-size:17px;font-weight:700;color:var(--gold);}
+.h-right{text-align:right;}
+.h-right .h-label{font-size:9px;color:var(--gray);}
+.h-right .h-val{font-size:18px;font-weight:700;color:var(--green);}
+
+.nav{display:flex;background:var(--bg3);border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.nav::-webkit-scrollbar{display:none;}
+.nb{flex-shrink:0;padding:12px 15px;font-size:12px;font-family:Georgia,serif;background:none;border:none;border-bottom:2px solid transparent;color:var(--gray);cursor:pointer;white-space:nowrap;}
+.nb.active{color:var(--gold);border-bottom-color:var(--gold2);}
+
+.main{padding:14px;max-width:900px;margin:0 auto;}
+.tab{display:none;} .tab.active{display:block;}
+
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;}
+.ct{font-size:9px;color:var(--gold2);letter-spacing:3px;text-transform:uppercase;font-weight:700;margin-bottom:12px;}
+
+.kgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px;}
+.kpi .kl{font-size:9px;color:var(--gray);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;}
+.kpi .kv{font-size:19px;font-weight:700;}
+
+.filtros{display:flex;gap:8px;margin-bottom:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px;}
+.filtros::-webkit-scrollbar{display:none;}
+.fb{flex-shrink:0;padding:6px 14px;font-size:11px;font-family:Georgia,serif;background:var(--bg2);border:1px solid var(--border);border-radius:20px;color:var(--gray);cursor:pointer;}
+.fb.active{background:var(--gold2);border-color:var(--gold2);color:#fff;}
+
+.inm-card{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.inm-card:active{border-color:var(--gold2);}
+.inm-n{font-weight:700;color:var(--gold);font-size:14px;}
+.inm-d{font-size:11px;color:var(--gray);margin-top:2px;}
+.inm-row{display:flex;justify-content:space-between;align-items:center;margin-top:8px;}
+.inm-meta{display:flex;gap:6px;flex-wrap:wrap;}
+
+.badge{font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid;font-weight:600;display:inline-block;}
+.b-alquilado{background:rgba(74,222,128,.15);color:#4ade80;border-color:rgba(74,222,128,.3);}
+.b-libre{background:rgba(96,165,250,.15);color:#60a5fa;border-color:rgba(96,165,250,.3);}
+.b-reforma{background:rgba(251,191,36,.15);color:#fbbf24;border-color:rgba(251,191,36,.3);}
+.b-venta{background:rgba(167,139,250,.15);color:#a78bfa;border-color:rgba(167,139,250,.3);}
+.b-vendido{background:rgba(107,114,128,.15);color:#9ca3af;border-color:rgba(107,114,128,.3);}
+.b-ocupada{background:rgba(96,165,250,.15);color:#60a5fa;border-color:rgba(96,165,250,.3);}
+.b-tipo{background:rgba(139,115,85,.2);color:var(--gold);border:none;}
+
+.btn-p{background:var(--gold2);border:none;border-radius:6px;color:#fff;padding:11px 18px;font-size:13px;font-family:Georgia,serif;cursor:pointer;font-weight:600;width:100%;margin-bottom:10px;}
+.btn-s{background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--gray);padding:10px 16px;font-size:13px;font-family:Georgia,serif;cursor:pointer;}
+.btn-sm{background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--gold);padding:6px 12px;font-size:11px;font-family:Georgia,serif;cursor:pointer;}
+.btn-d{background:rgba(248,113,113,.15);border:1px solid rgba(248,113,113,.3);border-radius:5px;color:var(--red);padding:6px 10px;font-size:11px;cursor:pointer;}
+.btn-row{display:flex;gap:8px;margin-top:14px;}
+.btn-row .btn-p{margin-bottom:0;}
+
+.field{margin-bottom:12px;}
+.field label{display:block;font-size:9px;color:var(--gray);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:5px;}
+.field input,.field select,.field textarea{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--gold);padding:10px 12px;font-size:14px;font-family:Georgia,serif;-webkit-appearance:none;appearance:none;}
+.field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px;}
+.field textarea{height:70px;resize:vertical;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px;}
+
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;display:flex;align-items:flex-end;} 
+.modal-ov.hidden{display:none;}
+.modal{background:var(--bg2);border-top:1px solid var(--border);border-radius:16px 16px 0 0;padding:20px 16px 36px;width:100%;max-height:92vh;overflow-y:auto;position:relative;}
+.modal-title{font-size:16px;font-weight:700;color:var(--gold);margin-bottom:18px;padding-right:36px;}
+.mc-btn{position:absolute;top:16px;right:14px;background:var(--bg3);border:1px solid var(--border);border-radius:50%;width:32px;height:32px;color:var(--gray);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;line-height:1;}
+
+.gitem{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;}
+.gtop{display:flex;justify-content:space-between;align-items:center;}
+.gcat{font-size:10px;background:var(--border);color:var(--gold);padding:2px 8px;border-radius:4px;}
+.gimp{font-weight:700;color:var(--red);font-size:15px;}
+.gdesc{font-size:12px;color:var(--gray);margin-top:4px;}
+.gbot{display:flex;justify-content:space-between;align-items:center;margin-top:6px;}
+.gfecha{font-size:11px;color:var(--gray);}
+.gact{display:flex;gap:6px;}
+
+.foto-area{background:var(--bg3);border:2px dashed var(--border);border-radius:8px;padding:16px;text-align:center;color:var(--gray);font-size:12px;cursor:pointer;margin-top:4px;position:relative;}
+.foto-area input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.foto-preview{width:100%;border-radius:6px;margin-top:8px;max-height:200px;object-fit:cover;}
+.foto-link{color:var(--blue);font-size:11px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-top:4px;}
+
+.sel-inm{width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;color:var(--gold);padding:10px 12px;font-size:14px;font-family:Georgia,serif;margin-bottom:14px;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;}
+.srow{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.sl{color:var(--gray);}
+
+.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#1a3a2a;border:1px solid var(--green);color:var(--green);padding:10px 22px;border-radius:8px;font-size:13px;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;}
+.toast.show{opacity:1;}
+.loading{text-align:center;padding:40px;color:var(--gray);}
+.spin{display:inline-block;width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--gold2);border-radius:50%;animation:sp .8s linear infinite;margin-bottom:10px;}
+@keyframes sp{to{transform:rotate(360deg);}}
+.empty{text-align:center;padding:24px;color:var(--gray);font-size:13px;}
+.sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.st{font-size:9px;color:var(--gold2);letter-spacing:3px;text-transform:uppercase;font-weight:700;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="h-left">
+    <div class="h-sub">DelSanto &amp; Gos Investment</div>
+    <div class="h-title">Gestión Inmobiliaria</div>
+  </div>
+  <div class="h-right">
+    <div class="h-label">Patrimonio neto</div>
+    <div class="h-val" id="hNet">—</div>
+  </div>
+</div>
+
+<div class="nav">
+  <button class="nb active" onclick="showTab('cartera')">🏠 Cartera</button>
+  <button class="nb" onclick="showTab('detalle')">📋 Detalle</button>
+  <button class="nb" onclick="showTab('gastos')">🧾 Gastos</button>
+  <button class="nb" onclick="showTab('reformas')">🔨 Reformas</button>
+  <button class="nb" onclick="showTab('resumen')">📊 Resumen</button>
+</div>
+
+<div class="main">
+
+  <!-- CARTERA -->
+  <div id="tab-cartera" class="tab active">
+    <div id="kpis" class="kgrid"></div>
+    <div id="filtros" class="filtros"></div>
+    <button class="btn-p" onclick="openModal('inmueble',{})">+ Nuevo inmueble</button>
+    <div id="lista-inm"><div class="loading"><div class="spin"></div><br>Cargando inmuebles...</div></div>
+  </div>
+
+  <!-- DETALLE -->
+  <div id="tab-detalle" class="tab">
+    <select class="sel-inm" id="det-sel" onchange="renderDetalle()">
+      <option value="">— Selecciona un inmueble —</option>
+    </select>
+    <div id="det-content"></div>
+  </div>
+
+  <!-- GASTOS -->
+  <div id="tab-gastos" class="tab">
+    <div class="sh">
+      <div><div class="st">Total gastos</div><div id="tot-gas" style="font-size:22px;font-weight:700;color:var(--red)">—</div></div>
+      <button class="btn-sm" onclick="openModal('gasto',{})">+ Nuevo</button>
+    </div>
+    <div id="lista-gas-g"></div>
+  </div>
+
+  <!-- REFORMAS -->
+  <div id="tab-reformas" class="tab">
+    <div class="sh">
+      <div><div class="st">Presupuesto total</div><div id="tot-ref" style="font-size:22px;font-weight:700;color:var(--amber)">—</div></div>
+      <button class="btn-sm" onclick="openModal('reforma',{})">+ Nueva</button>
+    </div>
+    <div id="lista-ref-g"></div>
+  </div>
+
+  <!-- RESUMEN -->
+  <div id="tab-resumen" class="tab">
+    <div id="resumen"></div>
+  </div>
+
+</div>
+
+<!-- MODAL -->
+<div class="modal-ov hidden" id="mov" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <button class="mc-btn" onclick="closeModal()">✕</button>
+    <div id="mc"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPA_URL = 'https://gcpgyifxnjlbgwxoonqz.supabase.co';
+const SUPA_KEY = 'sb_publishable_pUSW9Bz7ydyGGaDaGDDeAA_wR6v0Kpm';
+const { createClient } = supabase;
+const db = createClient(SUPA_URL, SUPA_KEY);
+
+let inmuebles=[], gastos=[], reformas=[], cobros=[];
+let filtro='Todos';
+
+const EUR = n => n!=null&&n!=='' ? new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(n) : '—';
+const toast = (msg,ok=true) => { const t=document.getElementById('toast'); t.textContent=msg; t.style.background=ok?'#1a3a2a':'#3a1a1a'; t.style.borderColor=ok?'var(--green)':'var(--red)'; t.style.color=ok?'var(--green)':'var(--red)'; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2500); };
+
+async function init() {
+  await Promise.all([loadInm(), loadGas(), loadRef(), loadCob()]);
+  renderAll();
+}
+
+async function loadInm() {
+  const {data,error} = await db.from('inmuebles').select('*').order('nombre');
+  if(data) { inmuebles=data; if(!inmuebles.length) await seedInm(); }
+}
+async function loadGas() { const {data}=await db.from('gastos').select('*').order('fecha',{ascending:false}); if(data) gastos=data; }
+async function loadRef() { const {data}=await db.from('reformas').select('*').order('created_at',{ascending:false}); if(data) reformas=data; }
+async function loadCob() { const {data}=await db.from('cobros').select('*').order('fecha',{ascending:false}); if(data) cobros=data; }
+
+async function seedInm() {
+  const rows=[
+    {nombre:'Vivienda Habitual',direccion:'Duque de Ahumada, 3 - 5 D',ciudad:'Soria',tipo:'Vivienda Habitual',estado:'Ocupada',superficie:'160 m²',cargas:'HIPOTECA *',valor:400000,deuda:0,alquiler:0},
+    {nombre:'Garaje Viv.Habitual P7',direccion:'Duque de Ahumada, 3 - sótano P7',ciudad:'Soria',tipo:'Garaje',estado:'Ocupada',superficie:'39 m²',cargas:'HIPOTECA *',valor:15000,deuda:0,alquiler:0},
+    {nombre:'Garaje Viv.Habitual P9',direccion:'Duque de Ahumada, 3 - sótano P9',ciudad:'Soria',tipo:'Garaje',estado:'Ocupada',superficie:'39 m²',cargas:'HIPOTECA *',valor:15000,deuda:0,alquiler:0},
+    {nombre:'Trastero Viv.Habitual T5',direccion:'Duque de Ahumada, sótano T5',ciudad:'Soria',tipo:'Trastero',estado:'Ocupada',superficie:'11 m²',cargas:'HIPOTECA *',valor:8000,deuda:0,alquiler:0},
+    {nombre:'Trastero Viv.Habitual T4',direccion:'Duque de Ahumada, 3 - sótano T4',ciudad:'Soria',tipo:'Trastero',estado:'Ocupada',superficie:'11 m²',cargas:'HIPOTECA *',valor:8000,deuda:0,alquiler:0},
+    {nombre:'Vivienda + Park + Trast Enrique Pascual',direccion:'Enrique Pascual Oliva, 1 - bajo B',ciudad:'Soria',tipo:'Vivienda',estado:'Alquilado',superficie:'126 m²',cargas:'HIPOTECA',valor:178000,deuda:87000,alquiler:800,tipo_alquiler:'larga'},
+    {nombre:'Casa con jardín Fuentelsaz',direccion:'Maínez, 1 - Fuentelsaz de Soria',ciudad:'Soria',tipo:'Vivienda',estado:'Libre',superficie:'83 m²',cargas:'LIBRE',valor:40000,deuda:0,alquiler:0},
+    {nombre:'Local Bocatería Palafox',direccion:'Venerable Palafox, 3',ciudad:'Soria',tipo:'Local Comercial',estado:'Libre',superficie:'88 m²',cargas:'LIBRE',valor:240000,deuda:0,alquiler:0},
+    {nombre:'Local Bandalay',direccion:'Tejera, 7 - bajo',ciudad:'Soria',tipo:'Local Comercial',estado:'Alquilado',superficie:'438 m²',cargas:'HIPOTECA *',valor:600000,deuda:638000,alquiler:1530,tipo_alquiler:'larga'},
+    {nombre:'Vivienda Doctor Simonena',direccion:'Doctor Simonena, 2 - 3 D',ciudad:'Pamplona',tipo:'Vivienda',estado:'Alquilado',superficie:'81 m²',cargas:'HIPOTECA',valor:180000,deuda:106000,alquiler:819,tipo_alquiler:'larga'},
+    {nombre:'Vivienda Travesía Huertas',direccion:'Travesía Huertas, 4 - 2',ciudad:'Pamplona',tipo:'Vivienda',estado:'Alquilado',superficie:'88 m²',cargas:'HIPOTECA',valor:232000,deuda:131000,alquiler:1177,tipo_alquiler:'larga'},
+    {nombre:'Apto. Lisa la Mata',direccion:'Lisa la Mata, 2 - 1 9 - Torrevieja',ciudad:'Alicante',tipo:'Apartamento Turístico',estado:'Alquilado',superficie:'30 m²',cargas:'LIBRE',valor:91000,deuda:0,alquiler:1200,tipo_alquiler:'vacacional'},
+    {nombre:'Apto. Poeta Vila y Blanco',direccion:'Poeta Vila y Blanco 4, planta 26, pta 329',ciudad:'Alicante',tipo:'Apartamento Turístico',estado:'Alquilado',superficie:'37 m²',cargas:'LIBRE',valor:205000,deuda:0,alquiler:2500,tipo_alquiler:'vacacional'},
+    {nombre:'Apto. Canonge Mateu Rotger',direccion:'Canonge Mateu Rotger, 28 - 3 F',ciudad:'Palma Mallorca',tipo:'Apartamento Turístico',estado:'Alquilado',superficie:'91 m²',cargas:'LIBRE',valor:310000,deuda:0,alquiler:3780,tipo_alquiler:'vacacional'},
+    {nombre:'Vivienda + Garaje La Sal',direccion:'La Sal, 29 - bajo - Torrevieja',ciudad:'Alicante',tipo:'Vivienda',estado:'Alquilado',superficie:'50 m²',cargas:'LIBRE',valor:150000,deuda:0,alquiler:750,tipo_alquiler:'larga'},
+    {nombre:'Vivienda + Garaje Gabino',direccion:'Travesía Gabino, 19 - Torrevieja',ciudad:'Alicante',tipo:'Vivienda',estado:'Alquilado',superficie:'75 m²',cargas:'HIPOTECA',valor:170000,deuda:101000,alquiler:850,tipo_alquiler:'larga'},
+    {nombre:'Vivienda Alona (Vendida)',direccion:'Alona, 26 - 2º Alicante',ciudad:'Alicante',tipo:'Vivienda',estado:'Vendido',superficie:'105 m²',cargas:'LIBRE',valor:240000,deuda:0,alquiler:0},
+    {nombre:'Vivienda Ancora Madrid',direccion:'Ancora, 7 - 1º A (Atocha)',ciudad:'Madrid',tipo:'Vivienda',estado:'Alquilado',superficie:'95 m²',cargas:'HIPOTECA',valor:599000,deuda:230000,alquiler:3760,tipo_alquiler:'larga'},
+    {nombre:'Vivienda Asunción 58',direccion:'Asunción, 58 - Torrevieja',ciudad:'Alicante',tipo:'Vivienda',estado:'Alquilado',superficie:'177 m²',cargas:'HIPOTECA',valor:494000,deuda:310000,alquiler:2370,tipo_alquiler:'larga'},
+    {nombre:'Vivienda Hab. Madrid Alcalá',direccion:'Alcalá, 145 - 3 C',ciudad:'Madrid',tipo:'Vivienda Habitual',estado:'Ocupada',superficie:'178 m²',cargas:'HIPOTECA',valor:3200000,deuda:920000,alquiler:0},
+    {nombre:'Vivienda Avenida San José',direccion:'Avenida San José 66, 2E',ciudad:'Zaragoza',tipo:'Vivienda',estado:'Alquilado',superficie:'56 m²',cargas:'LIBRE',valor:157000,deuda:0,alquiler:900,tipo_alquiler:'larga'},
+    {nombre:'Vivienda Don Manuel Martínez',direccion:'Rda Don Manuel Martínez Guira 2, 3-25',ciudad:'Alicante',tipo:'Vivienda',estado:'Alquilado',superficie:'55 m²',cargas:'LIBRE',valor:145000,deuda:0,alquiler:800,tipo_alquiler:'larga'},
+    {nombre:'Vivienda Calle Huerta',direccion:'Calle Huerta, 29 - 1º C',ciudad:'Torrevieja',tipo:'Vivienda',estado:'Alquilado',superficie:'57 m²',cargas:'LIBRE',valor:155000,deuda:0,alquiler:850,tipo_alquiler:'larga'},
+  ];
+  const {data}=await db.from('inmuebles').insert(rows).select();
+  if(data) inmuebles=data;
+}
+
+function renderAll() {
+  renderKpis(); renderFiltros(); renderListaInm(); renderDetSel();
+  renderGasGlobal(); renderRefGlobal(); renderResumen(); updateHNet();
+}
+
+function updateHNet() {
+  const v=inmuebles.filter(i=>i.estado!=='Vendido').reduce((s,i)=>s+(i.valor||0),0);
+  const d=inmuebles.reduce((s,i)=>s+(i.deuda||0),0);
+  document.getElementById('hNet').textContent=EUR(v-d);
+}
+
+function renderKpis() {
+  const act=inmuebles.filter(i=>i.estado!=='Vendido');
+  const alq=inmuebles.filter(i=>i.estado==='Alquilado');
+  document.getElementById('kpis').innerHTML=[
+    ['Inmuebles activos',act.length,'var(--gold)'],
+    ['Alquilados',alq.length,'var(--green)'],
+    ['Valor cartera',EUR(act.reduce((s,i)=>s+(i.valor||0),0)),'var(--green)'],
+    ['Ingresos/mes',EUR(alq.reduce((s,i)=>s+(i.alquiler||0),0)),'var(--blue)'],
+  ].map(([l,v,c])=>`<div class="kpi"><div class="kl">${l}</div><div class="kv" style="color:${c}">${v}</div></div>`).join('');
+}
+
+function renderFiltros() {
+  const estats=['Todos','Alquilado','Libre','En Reforma','En Venta','Vendido','Ocupada'];
+  document.getElementById('filtros').innerHTML=estats.map(e=>`<button class="fb ${filtro===e?'active':''}" onclick="setFiltro('${e}')">${e}</button>`).join('');
+}
+function setFiltro(e){filtro=e;renderFiltros();renderListaInm();}
+
+function badgeE(e){
+  const m={Alquilado:'alquilado',Libre:'libre','En Reforma':'reforma','En Venta':'venta',Vendido:'vendido',Ocupada:'ocupada'};
+  return `<span class="badge b-${m[e]||'libre'}">${e}</span>`;
+}
+function labelTA(t){return{larga:'Larga estancia',vacacional:'Vacacional',habitaciones:'Por habitaciones'}[t]||t;}
+
+function renderListaInm() {
+  const lista=filtro==='Todos'?inmuebles:inmuebles.filter(i=>i.estado===filtro);
+  if(!lista.length){document.getElementById('lista-inm').innerHTML='<div class="empty">No hay inmuebles en esta categoría</div>';return;}
+  document.getElementById('lista-inm').innerHTML=lista.map(i=>`
+    <div class="inm-card" onclick="goDetalle(${i.id})">
+      <div class="inm-n">${i.nombre}</div>
+      <div class="inm-d">${i.direccion} · ${i.ciudad}</div>
+      <div class="inm-row">
+        <div class="inm-meta">${badgeE(i.estado)}${i.tipo_alquiler?`<span class="badge b-tipo">${labelTA(i.tipo_alquiler)}</span>`:''}</div>
+        <span style="font-weight:700;color:var(--green);font-size:13px">${i.alquiler?EUR(i.alquiler)+'/mes':'—'}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px">
+        <span style="font-size:11px;color:var(--gray)">Valor: <strong style="color:var(--gold)">${EUR(i.valor)}</strong></span>
+        <span style="font-size:11px;color:var(--gray)">Deuda: <strong style="color:${i.deuda?'var(--red)':'var(--gray)'}">${i.deuda?EUR(i.deuda):'—'}</strong></span>
+      </div>
+    </div>`).join('');
+}
+
+function goDetalle(id){
+  document.getElementById('det-sel').value=id;
+  showTab('detalle');
+  renderDetalle();
+}
+
+function renderDetSel(){
+  document.getElementById('det-sel').innerHTML='<option value="">— Selecciona un inmueble —</option>'+
+    inmuebles.map(i=>`<option value="${i.id}">${i.nombre} — ${i.ciudad}</option>`).join('');
+}
+
+function renderDetalle(){
+  const id=parseInt(document.getElementById('det-sel').value);
+  const inm=inmuebles.find(i=>i.id===id);
+  const el=document.getElementById('det-content');
+  if(!inm){el.innerHTML='<div class="empty">Selecciona un inmueble arriba</div>';return;}
+  const rent=inm.alquiler&&inm.valor?((inm.alquiler*12/inm.valor)*100).toFixed(1)+'%':'—';
+  const gasInm=gastos.filter(g=>g.inmueble_id===id);
+  const cobInm=cobros.filter(c=>c.inmueble_id===id);
+  const refInm=reformas.filter(r=>r.inmueble_id===id);
+  const inmd=JSON.stringify(inm).replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+  el.innerHTML=`
+    <div class="card">
+      <div class="ct">Ficha del inmueble</div>
+      ${[['Nombre',inm.nombre],['Dirección',inm.direccion],['Ciudad',inm.ciudad],['Tipo',inm.tipo],['Superficie',inm.superficie],['Cargas',inm.cargas]].map(([l,v])=>`<div class="srow"><span class="sl">${l}</span><span style="color:var(--gold);text-align:right;max-width:60%">${v||'—'}</span></div>`).join('')}
+      <div class="srow"><span class="sl">Estado</span>${badgeE(inm.estado)}</div>
+      ${inm.tipo_alquiler?`<div class="srow"><span class="sl">Tipo alquiler</span><span class="badge b-tipo">${labelTA(inm.tipo_alquiler)}</span></div>`:''}
+      ${inm.notas?`<div style="margin-top:10px;font-size:12px;color:var(--gray);font-style:italic">${inm.notas}</div>`:''}
+      <button class="btn-sm" style="margin-top:12px" onclick='editInm(${inmd})'>✏️ Editar ficha</button>
+    </div>
+    <div class="card">
+      <div class="ct">Financiero</div>
+      ${[['Precio subasta',EUR(inm.subasta),'var(--gold)'],['Valor actual',EUR(inm.valor),'var(--green)'],['Deuda hipotecaria',EUR(inm.deuda),'var(--red)'],['Patrimonio neto',EUR((inm.valor||0)-(inm.deuda||0)),'var(--blue)'],['Alquiler mensual',EUR(inm.alquiler),'var(--purple)'],['Rentabilidad bruta',rent,'var(--amber)']].map(([l,v,c])=>`<div class="srow"><span class="sl">${l}</span><strong style="color:${c}">${v}</strong></div>`).join('')}
+    </div>
+    <div class="card">
+      <div class="sh"><div class="st">Gastos &amp; Facturas</div><button class="btn-sm" onclick="openModal('gasto',{inmueble_id:${id}})">+ Añadir</button></div>
+      ${renderGItems(gasInm)}
+    </div>
+    <div class="card">
+      <div class="sh"><div class="st">Cobros de alquiler</div><button class="btn-sm" onclick="openModal('cobro',{inmueble_id:${id}})">+ Cobro</button></div>
+      ${renderCItems(cobInm)}
+    </div>
+    <div class="card">
+      <div class="sh"><div class="st">Reformas</div><button class="btn-sm" onclick="openModal('reforma',{inmueble_id:${id}})">+ Reforma</button></div>
+      ${renderRItems(refInm)}
+    </div>`;
+}
+
+function editInm(d){ openModal('inmueble', d); }
+
+function renderGItems(items){
+  if(!items.length) return '<div class="empty">Sin gastos registrados</div>';
+  return items.map(g=>`
+    <div class="gitem">
+      <div class="gtop"><span class="gcat">${g.categoria||'—'}</span><span class="gimp">${g.importe?EUR(g.importe):'—'}</span></div>
+      <div class="gdesc">${g.descripcion||''}${g.proveedor?' · '+g.proveedor:''}</div>
+      ${g.url_factura?`<a class="foto-link" href="${g.url_factura}" target="_blank">📎 Ver factura adjunta</a>`:''}
+      <div class="gbot"><span class="gfecha">${g.fecha||'—'}${g.factura?' · Factura: '+g.factura:''}</span>
+      <div class="gact"><button class="btn-sm" onclick="editGasto(${g.id})">✏️</button><button class="btn-d" onclick="delGasto(${g.id})">🗑</button></div></div>
+    </div>`).join('');
+}
+
+function renderCItems(items){
+  if(!items.length) return '<div class="empty">Sin cobros registrados</div>';
+  return items.map(c=>`
+    <div class="gitem">
+      <div class="gtop"><span class="gcat">${c.concepto||'Alquiler'}</span><span style="font-weight:700;color:var(--green);font-size:15px">${c.importe?EUR(c.importe):'—'}</span></div>
+      <div class="gdesc">${c.inquilino||''}</div>
+      <div class="gbot"><span class="gfecha">${c.fecha||'—'}</span><button class="btn-d" onclick="delCobro(${c.id})">🗑</button></div>
+    </div>`).join('');
+}
+
+function renderRItems(items){
+  if(!items.length) return '<div class="empty">Sin reformas registradas</div>';
+  const sc={Finalizada:'var(--green)','En curso':'var(--amber)',Pendiente:'var(--red)',Presupuestada:'var(--blue)'};
+  return items.map(r=>`
+    <div class="gitem">
+      <div class="gtop"><span class="gcat" style="color:${sc[r.estado]||'var(--gray)'}">${r.estado||'—'}</span><span style="font-weight:700;color:var(--amber)">${r.presupuesto?EUR(r.presupuesto):'—'}</span></div>
+      <div class="gdesc" style="color:var(--gold)">${r.descripcion||'—'}</div>
+      <div class="gdesc">${r.empresa||''}</div>
+      ${r.coste_real?`<div class="gdesc">Coste real: <strong style="color:var(--red)">${EUR(r.coste_real)}</strong></div>`:''}
+      <div class="gbot"><span class="gfecha">${r.fecha_inicio||''}${r.fecha_fin?' → '+r.fecha_fin:''}</span>
+      <div class="gact"><button class="btn-sm" onclick="editReforma(${r.id})">✏️</button><button class="btn-d" onclick="delReforma(${r.id})">🗑</button></div></div>
+    </div>`).join('');
+}
+
+function renderGasGlobal(){
+  const total=gastos.reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
+  document.getElementById('tot-gas').textContent=EUR(total);
+  const nm=Object.fromEntries(inmuebles.map(i=>[i.id,i.nombre]));
+  document.getElementById('lista-gas-g').innerHTML=gastos.length?gastos.map(g=>`
+    <div class="gitem">
+      <div class="gtop"><span class="gcat">${g.categoria||'—'}</span><span class="gimp">${g.importe?EUR(g.importe):'—'}</span></div>
+      <div class="gdesc" style="color:var(--gold);font-size:11px">${g.inmueble_id?nm[g.inmueble_id]||'—':'General'}</div>
+      <div class="gdesc">${g.descripcion||''}${g.proveedor?' · '+g.proveedor:''}</div>
+      ${g.url_factura?`<a class="foto-link" href="${g.url_factura}" target="_blank">📎 Ver factura</a>`:''}
+      <div class="gbot"><span class="gfecha">${g.fecha||'—'}</span>
+      <div class="gact"><button class="btn-sm" onclick="editGasto(${g.id})">✏️</button><button class="btn-d" onclick="delGasto(${g.id})">🗑</button></div></div>
+    </div>`).join(''):'<div class="empty">Sin gastos registrados</div>';
+}
+
+function renderRefGlobal(){
+  const total=reformas.reduce((s,r)=>s+(parseFloat(r.presupuesto)||0),0);
+  document.getElementById('tot-ref').textContent=EUR(total);
+  const nm=Object.fromEntries(inmuebles.map(i=>[i.id,i.nombre]));
+  const sc={Finalizada:'var(--green)','En curso':'var(--amber)',Pendiente:'var(--red)',Presupuestada:'var(--blue)'};
+  document.getElementById('lista-ref-g').innerHTML=reformas.length?reformas.map(r=>`
+    <div class="gitem">
+      <div class="gtop"><span class="gcat" style="color:${sc[r.estado]||'var(--gray)'}">${r.estado||'—'}</span><span style="font-weight:700;color:var(--amber)">${r.presupuesto?EUR(r.presupuesto):'—'}</span></div>
+      <div class="gdesc" style="color:var(--gold);font-size:11px">${r.inmueble_id?nm[r.inmueble_id]||'—':'—'}</div>
+      <div class="gdesc" style="color:var(--gold)">${r.descripcion||'—'}</div>
+      <div class="gdesc">${r.empresa||''}</div>
+      ${r.coste_real?`<div class="gdesc">Coste real: <strong style="color:var(--red)">${EUR(r.coste_real)}</strong></div>`:''}
+      <div class="gbot"><span class="gfecha">${r.fecha_inicio||''}</span>
+      <div class="gact"><button class="btn-sm" onclick="editReforma(${r.id})">✏️</button><button class="btn-d" onclick="delReforma(${r.id})">🗑</button></div></div>
+    </div>`).join(''):'<div class="empty">Sin reformas registradas</div>';
+}
+
+function renderResumen(){
+  const act=inmuebles.filter(i=>i.estado!=='Vendido');
+  const alq=inmuebles.filter(i=>i.estado==='Alquilado');
+  const tV=act.reduce((s,i)=>s+(i.valor||0),0);
+  const tD=inmuebles.reduce((s,i)=>s+(i.deuda||0),0);
+  const tA=alq.reduce((s,i)=>s+(i.alquiler||0),0);
+  const tG=gastos.reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
+  const tR=reformas.reduce((s,r)=>s+(parseFloat(r.presupuesto)||0),0);
+  const tC=cobros.reduce((s,c)=>s+(parseFloat(c.importe)||0),0);
+  const ciudades={};
+  act.forEach(i=>{ciudades[i.ciudad]=(ciudades[i.ciudad]||0)+1;});
+  const topR=inmuebles.filter(i=>i.alquiler&&i.valor).map(i=>({...i,r:(i.alquiler*12/i.valor*100)})).sort((a,b)=>b.r-a.r).slice(0,5);
+  document.getElementById('resumen').innerHTML=`
+    <div class="card"><div class="ct">Patrimonio</div>
+      ${[['Valor cartera',EUR(tV),'var(--green)'],['Deuda total',EUR(tD),'var(--red)'],['Patrimonio neto',EUR(tV-tD),'var(--blue)']].map(([l,v,c])=>`<div class="srow"><span class="sl">${l}</span><strong style="color:${c}">${v}</strong></div>`).join('')}
+    </div>
+    <div class="card"><div class="ct">Ingresos</div>
+      ${[['Alquiler mensual',EUR(tA),'var(--green)'],['Alquiler anual est.',EUR(tA*12),'var(--green)'],['Cobros registrados',EUR(tC),'var(--purple)']].map(([l,v,c])=>`<div class="srow"><span class="sl">${l}</span><strong style="color:${c}">${v}</strong></div>`).join('')}
+    </div>
+    <div class="card"><div class="ct">Gastos &amp; Reformas</div>
+      ${[['Gastos registrados',EUR(tG),'var(--red)'],['Presupuesto reformas',EUR(tR),'var(--amber)'],['Total',EUR(tG+tR),'var(--red)']].map(([l,v,c])=>`<div class="srow"><span class="sl">${l}</span><strong style="color:${c}">${v}</strong></div>`).join('')}
+    </div>
+    <div class="card"><div class="ct">Por ciudad</div>
+      ${Object.entries(ciudades).sort((a,b)=>b[1]-a[1]).map(([c,n])=>`<div class="srow"><span class="sl">${c}</span><strong style="color:var(--gold)">${n} inmueble${n>1?'s':''}</strong></div>`).join('')}
+    </div>
+    <div class="card"><div class="ct">Top rentabilidad bruta</div>
+      ${topR.map(i=>`<div class="srow"><span class="sl" style="font-size:12px">${i.nombre}</span><strong style="color:var(--green)">${i.r.toFixed(1)}%</strong></div>`).join('')}
+    </div>`;
+}
+
+// ── TABS ──────────────────────────────────────────────────────────────────────
+function showTab(t){
+  document.querySelectorAll('.tab').forEach(e=>e.classList.remove('active'));
+  document.getElementById('tab-'+t).classList.add('active');
+  document.querySelectorAll('.nb').forEach((b,i)=>b.classList.toggle('active',['cartera','detalle','gastos','reformas','resumen'][i]===t));
+  if(t==='detalle') renderDetalle();
+}
+
+// ── MODAL ─────────────────────────────────────────────────────────────────────
+function openModal(type,data){ document.getElementById('mov').classList.remove('hidden'); if(type==='inmueble') mInm(data); else if(type==='gasto') mGasto(data); else if(type==='reforma') mReforma(data); else if(type==='cobro') mCobro(data); }
+function closeModal(){ document.getElementById('mov').classList.add('hidden'); }
+
+const fi=(id,v,type='text',ph='')=>`<input id="${id}" type="${type}" value="${v||''}" placeholder="${ph}">`;
+const fs=(id,v,opts)=>`<select id="${id}">${opts.map(o=>`<option value="${o}"${o==v?' selected':''}>${o||'—'}</option>`).join('')}</select>`;
+const ff=(l,inp)=>`<div class="field"><label>${l}</label>${inp}</div>`;
+
+function mInm(d){
+  document.getElementById('mc').innerHTML=`
+    <div class="modal-title">${d.id?'Editar inmueble':'Nuevo inmueble'}</div>
+    <div class="g2">
+      ${ff('Nombre',fi('fn',d.nombre))}
+      ${ff('Tipo',fs('ft',d.tipo||'Vivienda',['Vivienda','Vivienda Habitual','Apartamento Turístico','Local Comercial','Garaje','Trastero','Otro']))}
+      ${ff('Dirección',fi('fdir',d.direccion))}
+      ${ff('Ciudad',fi('fciu',d.ciudad))}
+      ${ff('Superficie',fi('fsup',d.superficie,'text','ej: 80 m²'))}
+      ${ff('Cargas',fs('fcar',d.cargas||'LIBRE',['LIBRE','HIPOTECA','HIPOTECA *']))}
+      ${ff('Estado',fs('fest',d.estado||'Libre',['Libre','Alquilado','En Reforma','En Venta','Vendido','Ocupada']))}
+      ${ff('Tipo alquiler',fs('fta',d.tipo_alquiler||'',['','larga','vacacional','habitaciones']))}
+      ${ff('Precio subasta (€)',fi('fsub',d.subasta,'number'))}
+      ${ff('Valor actual (€)',fi('fval',d.valor,'number'))}
+      ${ff('Deuda (€)',fi('fdeu',d.deuda,'number'))}
+      ${ff('Alquiler/mes (€)',fi('falq',d.alquiler,'number'))}
+    </div>
+    ${ff('Notas',`<textarea id="fnot">${d.notas||''}</textarea>`)}
+    <div class="btn-row">
+      <button class="btn-s" onclick="closeModal()">Cancelar</button>
+      <button class="btn-p" onclick="saveInm(${d.id||0})">💾 Guardar</button>
+    </div>`;
+}
+
+function mGasto(d){
+  const opts=inmuebles.map(i=>`<option value="${i.id}"${i.id==d.inmueble_id?' selected':''}>${i.nombre}</option>`).join('');
+  document.getElementById('mc').innerHTML=`
+    <div class="modal-title">${d.id?'Editar gasto':'Nuevo gasto / factura'}</div>
+    ${ff('Inmueble',`<select id="finm"><option value="">— General —</option>${opts}</select>`)}
+    <div class="g2">
+      ${ff('Categoría',fs('fcat',d.categoria||'',['','IBI','Comunidad','Seguro','Electricidad','Agua','Gas','Suministros','Mantenimiento','Gestoría','Notaría','Hipoteca','Reforma','Otros']))}
+      ${ff('Importe (€)',fi('fimp',d.importe,'number'))}
+      ${ff('Fecha',fi('ffec',d.fecha,'date'))}
+      ${ff('Proveedor',fi('fpro',d.proveedor,'text','Empresa o persona'))}
+    </div>
+    ${ff('Descripción',fi('fdes',d.descripcion,'text','Concepto del gasto'))}
+    ${ff('Nº Factura',fi('ffact',d.factura,'text','Opcional'))}
+    <div class="field">
+      <label>📷 Foto de factura</label>
+      <div class="foto-area" id="foto-area-g">
+        <input type="file" accept="image/*,application/pdf" capture="environment" onchange="previewFoto(this,'foto-area-g','foto-prev-g','fotodata-g')">
+        📷 Pulsa para hacer foto o seleccionar archivo
+      </div>
+      ${d.url_factura?`<a class="foto-link" href="${d.url_factura}" target="_blank">📎 Factura adjunta actual</a>`:''}
+      <img id="foto-prev-g" class="foto-preview" style="display:none">
+      <input type="hidden" id="fotodata-g">
+    </div>
+    <div class="btn-row">
+      <button class="btn-s" onclick="closeModal()">Cancelar</button>
+      <button class="btn-p" onclick="saveGasto(${d.id||0},'${d.url_factura||''}')">💾 Guardar</button>
+    </div>`;
+}
+
+function mReforma(d){
+  const opts=inmuebles.map(i=>`<option value="${i.id}"${i.id==d.inmueble_id?' selected':''}>${i.nombre}</option>`).join('');
+  document.getElementById('mc').innerHTML=`
+    <div class="modal-title">${d.id?'Editar reforma':'Nueva reforma'}</div>
+    ${ff('Inmueble',`<select id="finm"><option value="">— Seleccionar —</option>${opts}</select>`)}
+    ${ff('Descripción',fi('fdes',d.descripcion,'text','Qué se va a reformar'))}
+    <div class="g2">
+      ${ff('Presupuesto (€)',fi('fpres',d.presupuesto,'number'))}
+      ${ff('Coste real (€)',fi('fcost',d.coste_real,'number'))}
+      ${ff('Fecha inicio',fi('ffi',d.fecha_inicio,'date'))}
+      ${ff('Fecha fin',fi('fff',d.fecha_fin,'date'))}
+      ${ff('Empresa / Profesional',fi('femp',d.empresa))}
+      ${ff('Estado',fs('fest',d.estado||'Pendiente',['Pendiente','Presupuestada','En curso','Finalizada']))}
+    </div>
+    ${ff('Notas',`<textarea id="fnot">${d.notas||''}</textarea>`)}
+    <div class="btn-row">
+      <button class="btn-s" onclick="closeModal()">Cancelar</button>
+      <button class="btn-p" onclick="saveReforma(${d.id||0})">💾 Guardar</button>
+    </div>`;
+}
+
+function mCobro(d){
+  const opts=inmuebles.map(i=>`<option value="${i.id}"${i.id==d.inmueble_id?' selected':''}>${i.nombre}</option>`).join('');
+  document.getElementById('mc').innerHTML=`
+    <div class="modal-title">Registrar cobro</div>
+    ${ff('Inmueble',`<select id="finm"><option value="">— Seleccionar —</option>${opts}</select>`)}
+    <div class="g2">
+      ${ff('Importe (€)',fi('fimp',d.importe,'number'))}
+      ${ff('Fecha',fi('ffec',d.fecha||new Date().toISOString().slice(0,10),'date'))}
+      ${ff('Concepto',fi('fcon',d.concepto,'text','Alquiler mes, fianza...'))}
+      ${ff('Inquilino',fi('finq',d.inquilino))}
+    </div>
+    <div class="btn-row">
+      <button class="btn-s" onclick="closeModal()">Cancelar</button>
+      <button class="btn-p" onclick="saveCobro(${d.id||0})">💾 Guardar</button>
+    </div>`;
+}
+
+// ── PREVIEW FOTO ──────────────────────────────────────────────────────────────
+function previewFoto(input, areaId, prevId, dataId){
+  const file=input.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const prev=document.getElementById(prevId);
+    if(file.type.startsWith('image/')){
+      prev.src=e.target.result;
+      prev.style.display='block';
+    }
+    document.getElementById(dataId).value=e.target.result;
+    document.getElementById(areaId).style.borderColor='var(--green)';
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── SAVE INMUEBLE ─────────────────────────────────────────────────────────────
+async function saveInm(id){
+  const row={
+    nombre:document.getElementById('fn').value,
+    tipo:document.getElementById('ft').value,
+    direccion:document.getElementById('fdir').value,
+    ciudad:document.getElementById('fciu').value,
+    superficie:document.getElementById('fsup').value,
+    cargas:document.getElementById('fcar').value,
+    estado:document.getElementById('fest').value,
+    tipo_alquiler:document.getElementById('fta').value||null,
+    subasta:parseFloat(document.getElementById('fsub').value)||null,
+    valor:parseFloat(document.getElementById('fval').value)||null,
+    deuda:parseFloat(document.getElementById('fdeu').value)||0,
+    alquiler:parseFloat(document.getElementById('falq').value)||0,
+    notas:document.getElementById('fnot').value||null,
+  };
+  let err;
+  if(id){ ({error:err}=await db.from('inmuebles').update(row).eq('id',id)); }
+  else { ({error:err}=await db.from('inmuebles').insert(row)); }
+  if(err){ toast('Error: '+err.message,false); return; }
+  toast('✅ Inmueble guardado');
+  closeModal();
+  await loadInm();
+  renderAll();
+}
+
+// ── SAVE GASTO ────────────────────────────────────────────────────────────────
+async function saveGasto(id, oldUrl){
+  let url_factura = oldUrl || null;
+  const fotoData = document.getElementById('fotodata-g')?.value;
+  const inmSel = document.getElementById('finm')?.value;
+  
+  // Si hay foto nueva, súbela a Supabase Storage
+  if(fotoData && fotoData.startsWith('data:')){
+    try {
+      const res = await fetch(fotoData);
+      const blob = await res.blob();
+      const ext = blob.type.includes('pdf')?'pdf':'jpg';
+      const fname = `facturas/${Date.now()}.${ext}`;
+      const {data:upData, error:upErr} = await db.storage.from('facturas').upload(fname, blob, {contentType: blob.type});
+      if(!upErr && upData){
+        const {data:urlData} = db.storage.from('facturas').getPublicUrl(fname);
+        url_factura = urlData?.publicUrl || null;
+      }
+    } catch(e) { console.warn('Upload error',e); }
+  }
+
+  const row={
+    inmueble_id: inmSel ? parseInt(inmSel) : null,
+    categoria: document.getElementById('fcat').value||null,
+    importe: parseFloat(document.getElementById('fimp').value)||null,
+    fecha: document.getElementById('ffec').value||null,
+    proveedor: document.getElementById('fpro').value||null,
+    descripcion: document.getElementById('fdes').value||null,
+    factura: document.getElementById('ffact').value||null,
+    url_factura,
+  };
+  let err;
+  if(id){ ({error:err}=await db.from('gastos').update(row).eq('id',id)); }
+  else { ({error:err}=await db.from('gastos').insert(row)); }
+  if(err){ toast('Error: '+err.message,false); return; }
+  toast('✅ Gasto guardado');
+  closeModal();
+  await loadGas();
+  renderGasGlobal();
+  renderDetalle();
+}
+
+// ── SAVE REFORMA ──────────────────────────────────────────────────────────────
+async function saveReforma(id){
+  const inmSel=document.getElementById('finm')?.value;
+  const row={
+    inmueble_id: inmSel?parseInt(inmSel):null,
+    descripcion: document.getElementById('fdes').value||null,
+    presupuesto: parseFloat(document.getElementById('fpres').value)||null,
+    coste_real: parseFloat(document.getElementById('fcost').value)||null,
+    fecha_inicio: document.getElementById('ffi').value||null,
+    fecha_fin: document.getElementById('fff').value||null,
+    empresa: document.getElementById('femp').value||null,
+    estado: document.getElementById('fest').value||'Pendiente',
+    notas: document.getElementById('fnot').value||null,
+  };
+  let err;
+  if(id){ ({error:err}=await db.from('reformas').update(row).eq('id',id)); }
+  else { ({error:err}=await db.from('reformas').insert(row)); }
+  if(err){ toast('Error: '+err.message,false); return; }
+  toast('✅ Reforma guardada');
+  closeModal();
+  await loadRef();
+  renderRefGlobal();
+  renderDetalle();
+}
+
+// ── SAVE COBRO ────────────────────────────────────────────────────────────────
+async function saveCobro(id){
+  const inmSel=document.getElementById('finm')?.value;
+  const row={
+    inmueble_id: inmSel?parseInt(inmSel):null,
+    importe: parseFloat(document.getElementById('fimp').value)||null,
+    fecha: document.getElementById('ffec').value||null,
+    concepto: document.getElementById('fcon').value||null,
+    inquilino: document.getElementById('finq').value||null,
+  };
+  let err;
+  if(id){ ({error:err}=await db.from('cobros').update(row).eq('id',id)); }
+  else { ({error:err}=await db.from('cobros').insert(row)); }
+  if(err){ toast('Error: '+err.message,false); return; }
+  toast('✅ Cobro registrado');
+  closeModal();
+  await loadCob();
+  renderDetalle();
+  renderResumen();
+}
+
+// ── EDIT / DELETE ─────────────────────────────────────────────────────────────
+function editGasto(id){ const g=gastos.find(x=>x.id===id); if(g) openModal('gasto',g); }
+function editReforma(id){ const r=reformas.find(x=>x.id===id); if(r) openModal('reforma',r); }
+
+async function delGasto(id){
+  if(!confirm('¿Eliminar este gasto?')) return;
+  await db.from('gastos').delete().eq('id',id);
+  toast('🗑 Gasto eliminado');
+  await loadGas(); renderGasGlobal(); renderDetalle();
+}
+async function delCobro(id){
+  if(!confirm('¿Eliminar este cobro?')) return;
+  await db.from('cobros').delete().eq('id',id);
+  toast('🗑 Cobro eliminado');
+  await loadCob(); renderDetalle(); renderResumen();
+}
+async function delReforma(id){
+  if(!confirm('¿Eliminar esta reforma?')) return;
+  await db.from('reformas').delete().eq('id',id);
+  toast('🗑 Reforma eliminada');
+  await loadRef(); renderRefGlobal(); renderDetalle();
+}
+
+// ── START ─────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
