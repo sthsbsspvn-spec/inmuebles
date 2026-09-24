@@ -1,0 +1,2277 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>DelSanto & Gos — Private Wealth v2</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0a0d14; --bg2:#141824; --bg3:#0f1320; --bg4:#1c2235;
+  --border:#252b3d; --border2:#2f3650;
+  --gold:#d4b777; --gold2:#b8955a; --gold3:#8b6d3d; --gold-glow:rgba(212,183,119,.15);
+  --green:#4ade80; --green2:#22c55e; --green-glow:rgba(74,222,128,.12);
+  --red:#f87171; --red2:#ef4444; --red-glow:rgba(248,113,113,.12);
+  --blue:#60a5fa; --blue2:#3b82f6; --blue-glow:rgba(96,165,250,.12);
+  --purple:#a78bfa; --amber:#fbbf24; --amber-glow:rgba(251,191,36,.12);
+  --gray:#6b7280; --gray2:#9ca3af; --text:#e8e4dc; --text2:#c7c2b6;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at top,rgba(212,183,119,.04),transparent 50%),radial-gradient(ellipse at bottom,rgba(96,165,250,.03),transparent 50%);pointer-events:none;z-index:0;}
+
+/* ── HEADER ── */
+.header{position:sticky;top:0;z-index:100;background:linear-gradient(180deg,rgba(20,24,36,.95),rgba(15,19,32,.95));backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:14px 16px;}
+.h-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+.h-brand{display:flex;flex-direction:column;}
+.h-sub{font-size:9px;letter-spacing:3.5px;color:var(--gold2);text-transform:uppercase;font-weight:600;}
+.h-title{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:var(--gold);letter-spacing:-.5px;line-height:1;margin-top:3px;}
+.h-logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--gold),var(--gold3));display:flex;align-items:center;justify-content:center;color:#0a0d14;font-family:'Playfair Display',serif;font-weight:900;font-size:20px;box-shadow:0 4px 16px rgba(212,183,119,.3);}
+.h-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.h-stat{background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:10px;padding:10px 12px;}
+.h-stat-label{font-size:8.5px;letter-spacing:1.8px;color:var(--gray);text-transform:uppercase;font-weight:600;margin-bottom:4px;}
+.h-stat-val{font-size:15px;font-weight:700;letter-spacing:-.3px;}
+.h-stat-sub{font-size:9px;color:var(--gray2);margin-top:2px;}
+
+/* ── NAV ── */
+.nav{display:flex;background:var(--bg3);border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:sticky;top:0;z-index:50;}
+.nav::-webkit-scrollbar{display:none;}
+.nb{flex-shrink:0;padding:14px 16px;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;background:none;border:none;border-bottom:2px solid transparent;color:var(--gray);cursor:pointer;white-space:nowrap;transition:all .25s;letter-spacing:.3px;}
+.nb:hover{color:var(--text2);}
+.nb.active{color:var(--gold);border-bottom-color:var(--gold);}
+
+.main{padding:16px;max-width:1100px;margin:0 auto;position:relative;z-index:1;}
+.tab{display:none;animation:fadeUp .4s ease;}
+.tab.active{display:block;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.6;}}
+
+/* ── CARDS ── */
+.card{background:linear-gradient(180deg,var(--bg2),var(--bg3));border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 2px 12px rgba(0,0,0,.2);transition:transform .2s,border-color .2s;}
+.card:hover{border-color:var(--border2);}
+.ct{font-size:9.5px;color:var(--gold2);letter-spacing:3px;text-transform:uppercase;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.ct::before{content:'';width:3px;height:12px;background:var(--gold);border-radius:2px;}
+
+/* ── KPI GRID ── */
+.kgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
+@media(min-width:640px){.kgrid{grid-template-columns:repeat(4,1fr);}}
+.kpi{background:linear-gradient(180deg,var(--bg2),var(--bg3));border:1px solid var(--border);border-radius:12px;padding:14px;position:relative;overflow:hidden;transition:all .3s;}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent,var(--gold)),transparent);}
+.kpi:hover{transform:translateY(-2px);border-color:var(--border2);}
+.kpi .kl{font-size:9px;color:var(--gray);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;font-weight:600;}
+.kpi .kv{font-size:20px;font-weight:700;letter-spacing:-.5px;}
+.kpi .ks{font-size:10px;color:var(--gray2);margin-top:3px;}
+
+/* ── FILTROS ── */
+.filtros{display:flex;gap:8px;margin-bottom:14px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:2px 0;}
+.filtros::-webkit-scrollbar{display:none;}
+.fb{flex-shrink:0;padding:7px 14px;font-size:11.5px;font-weight:600;font-family:'Inter',sans-serif;background:var(--bg2);border:1px solid var(--border);border-radius:20px;color:var(--gray2);cursor:pointer;transition:all .2s;letter-spacing:.2px;}
+.fb:hover{color:var(--text);border-color:var(--gold2);}
+.fb.active{background:linear-gradient(135deg,var(--gold2),var(--gold3));border-color:var(--gold2);color:#0a0d14;font-weight:700;}
+
+/* ── CIUDAD SEPARATOR ── */
+.ciudad-sep{display:flex;align-items:center;gap:12px;margin:18px 0 10px;padding:0 2px;}
+.ciudad-sep:first-child{margin-top:0;}
+.ciudad-sep .cs-name{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--gold);letter-spacing:.5px;}
+.ciudad-sep .cs-line{flex:1;height:1px;background:linear-gradient(90deg,var(--gold2),transparent);}
+.ciudad-sep .cs-count{font-size:10px;color:var(--gray);letter-spacing:2px;text-transform:uppercase;font-weight:600;padding:3px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;}
+
+/* ── INMUEBLE CARD ── */
+.inm-card{background:linear-gradient(180deg,var(--bg2),var(--bg3));border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px;cursor:pointer;transition:all .25s;position:relative;overflow:hidden;}
+.inm-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--estado-color,var(--gold));}
+.inm-card:hover{border-color:var(--gold2);transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,0,0,.3);}
+.inm-card:active{transform:translateY(0);}
+.inm-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:10px;}
+.inm-n{font-family:'Playfair Display',serif;font-weight:600;color:var(--gold);font-size:15px;letter-spacing:.2px;line-height:1.25;flex:1;}
+.inm-d{font-size:11px;color:var(--gray2);margin-top:2px;line-height:1.4;}
+.inm-metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+@media(min-width:480px){.inm-metrics{grid-template-columns:repeat(4,1fr);}}
+.inm-metric{display:flex;flex-direction:column;gap:2px;}
+.inm-metric-label{font-size:9px;color:var(--gray);letter-spacing:1px;text-transform:uppercase;font-weight:600;}
+.inm-metric-value{font-size:12.5px;font-weight:700;letter-spacing:-.2px;}
+.inm-badges{display:flex;gap:5px;flex-wrap:wrap;}
+
+/* ── BADGES ── */
+.badge{font-size:9.5px;padding:3px 8px;border-radius:20px;border:1px solid;font-weight:600;display:inline-block;letter-spacing:.3px;}
+.b-alquilado{background:var(--green-glow);color:var(--green);border-color:rgba(74,222,128,.3);}
+.b-libre{background:var(--blue-glow);color:var(--blue);border-color:rgba(96,165,250,.3);}
+.b-reforma{background:var(--amber-glow);color:var(--amber);border-color:rgba(251,191,36,.3);}
+.b-venta{background:rgba(167,139,250,.12);color:var(--purple);border-color:rgba(167,139,250,.3);}
+.b-vendido{background:rgba(107,114,128,.15);color:#9ca3af;border-color:rgba(107,114,128,.3);}
+.b-ocupada{background:var(--blue-glow);color:var(--blue);border-color:rgba(96,165,250,.3);}
+.b-tipo{background:var(--gold-glow);color:var(--gold);border-color:rgba(212,183,119,.25);}
+.b-alert{background:var(--red-glow);color:var(--red);border-color:rgba(248,113,113,.35);animation:pulse 2s infinite;}
+
+/* ── BUTTONS ── */
+.btn-p{background:linear-gradient(135deg,var(--gold2),var(--gold3));border:none;border-radius:10px;color:#0a0d14;padding:12px 18px;font-size:13px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;width:100%;margin-bottom:10px;letter-spacing:.3px;transition:all .2s;box-shadow:0 2px 8px rgba(212,183,119,.2);}
+.btn-p:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(212,183,119,.3);}
+.btn-p:active{transform:translateY(0);}
+.btn-s{background:var(--bg3);border:1px solid var(--border);border-radius:10px;color:var(--text2);padding:11px 16px;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s;}
+.btn-s:hover{border-color:var(--gold2);color:var(--gold);}
+.btn-sm{background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--gold);padding:7px 12px;font-size:11px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;transition:all .2s;}
+.btn-sm:hover{border-color:var(--gold2);background:var(--gold-glow);}
+.btn-d{background:var(--red-glow);border:1px solid rgba(248,113,113,.3);border-radius:8px;color:var(--red);padding:7px 10px;font-size:11px;cursor:pointer;transition:all .2s;}
+.btn-d:hover{background:rgba(248,113,113,.2);}
+.btn-ai{background:linear-gradient(135deg,#7c3aed,#a78bfa);border:none;border-radius:10px;color:#fff;padding:11px 16px;font-size:12px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-bottom:10px;box-shadow:0 2px 8px rgba(124,58,237,.3);}
+.btn-ai:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(124,58,237,.4);}
+.btn-ai:disabled{opacity:.6;cursor:not-allowed;}
+.btn-row{display:flex;gap:8px;margin-top:14px;}
+.btn-row .btn-p{margin-bottom:0;}
+
+/* ── FIELDS ── */
+.field{margin-bottom:12px;}
+.field label{display:block;font-size:9.5px;color:var(--gray);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:5px;font-weight:600;}
+.field input,.field select,.field textarea{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--gold);padding:11px 12px;font-size:14px;font-family:'Inter',sans-serif;-webkit-appearance:none;appearance:none;transition:border-color .2s;}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--gold2);}
+.field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px;}
+.field textarea{height:70px;resize:vertical;font-family:'Inter',sans-serif;}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 10px;}
+
+/* ── MODAL ── */
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:200;display:flex;align-items:flex-end;animation:fadeIn .2s;}
+.modal-ov.hidden{display:none;}
+.modal{background:linear-gradient(180deg,var(--bg2),var(--bg3));border-top:1px solid var(--gold2);border-radius:20px 20px 0 0;padding:22px 18px 36px;width:100%;max-height:92vh;overflow-y:auto;position:relative;animation:slideUp .3s cubic-bezier(.2,.9,.3,1);}
+@keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
+@media(min-width:640px){.modal-ov{align-items:center;justify-content:center;padding:20px;}.modal{border-radius:20px;max-width:560px;border:1px solid var(--gold2);}}
+.modal-title{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--gold);margin-bottom:18px;padding-right:40px;letter-spacing:.3px;}
+.mc-btn{position:absolute;top:18px;right:16px;background:var(--bg4);border:1px solid var(--border);border-radius:50%;width:34px;height:34px;color:var(--gray2);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;line-height:1;transition:all .2s;}
+.mc-btn:hover{color:var(--gold);border-color:var(--gold2);}
+
+/* ── ITEMS ── */
+.gitem{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;transition:border-color .2s;}
+.gitem:hover{border-color:var(--border2);}
+.gtop{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.gcat{font-size:9.5px;background:var(--gold-glow);color:var(--gold);padding:3px 9px;border-radius:6px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;}
+.gimp{font-weight:700;color:var(--red);font-size:15px;letter-spacing:-.2px;}
+.gdesc{font-size:12px;color:var(--gray2);margin-top:4px;line-height:1.4;}
+.gbot{display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:8px;}
+.gfecha{font-size:10.5px;color:var(--gray);}
+.gact{display:flex;gap:6px;}
+
+/* ── FOTO ── */
+.foto-area{background:var(--bg3);border:2px dashed var(--border2);border-radius:10px;padding:18px;text-align:center;color:var(--gray2);font-size:12px;cursor:pointer;margin-top:4px;position:relative;transition:all .2s;}
+.foto-area:hover{border-color:var(--gold2);color:var(--gold);}
+.foto-area input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.foto-preview{width:100%;border-radius:8px;margin-top:10px;max-height:220px;object-fit:cover;border:1px solid var(--border);}
+.foto-link{color:var(--blue);font-size:11.5px;text-decoration:none;display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:5px 10px;background:var(--blue-glow);border-radius:6px;border:1px solid rgba(96,165,250,.2);font-weight:500;}
+.foto-link:hover{background:rgba(96,165,250,.2);}
+
+/* ── SELECT INM ── */
+.sel-inm{width:100%;background:linear-gradient(180deg,var(--bg2),var(--bg3));border:1px solid var(--gold3);border-radius:10px;color:var(--gold);padding:12px 14px;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;margin-bottom:14px;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23d4b777' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
+.srow{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;gap:8px;}
+.srow:last-child{border-bottom:none;}
+.sl{color:var(--gray2);font-weight:500;}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#1a3a2a;border:1px solid var(--green);color:var(--green);padding:12px 22px;border-radius:10px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;white-space:nowrap;box-shadow:0 8px 28px rgba(0,0,0,.5);}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+
+/* ── LOADING ── */
+.loading{text-align:center;padding:48px 20px;color:var(--gray);}
+.spin{display:inline-block;width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:sp .8s linear infinite;margin-bottom:12px;}
+@keyframes sp{to{transform:rotate(360deg);}}
+.empty{text-align:center;padding:28px;color:var(--gray);font-size:13px;font-style:italic;}
+.sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px;}
+.st{font-size:9.5px;color:var(--gold2);letter-spacing:3px;text-transform:uppercase;font-weight:700;}
+
+/* ── CASHFLOW ── */
+.cf-card{background:linear-gradient(135deg,rgba(74,222,128,.08),rgba(96,165,250,.05));border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px;}
+.cf-title{font-size:10px;color:var(--gold2);letter-spacing:2.5px;text-transform:uppercase;font-weight:700;margin-bottom:10px;}
+.cf-main{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;}
+.cf-label{font-size:11px;color:var(--gray2);}
+.cf-val{font-size:22px;font-weight:700;letter-spacing:-.5px;}
+.cf-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11.5px;}
+.cf-item{display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border);}
+.cf-item:nth-child(-n+2){border-top:none;padding-top:0;}
+
+/* ── CONTRATO ALERT ── */
+.contrato-alert{background:var(--red-glow);border:1px solid rgba(248,113,113,.4);border-left:4px solid var(--red);border-radius:10px;padding:12px;margin-bottom:12px;display:flex;align-items:center;gap:10px;}
+.ca-icon{font-size:20px;}
+.ca-content{flex:1;}
+.ca-title{font-size:12px;font-weight:700;color:var(--red);margin-bottom:2px;}
+.ca-sub{font-size:11px;color:var(--gray2);}
+
+/* ── CHART ── */
+.chart-box{background:linear-gradient(180deg,var(--bg2),var(--bg3));border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px;}
+.chart-title{font-family:'Playfair Display',serif;font-size:15px;font-weight:600;color:var(--gold);margin-bottom:12px;}
+.chart-wrap{position:relative;height:240px;}
+.chart-wrap.tall{height:280px;}
+
+/* ── RANKING ── */
+.rank-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);}
+.rank-item:last-child{border-bottom:none;}
+.rank-pos{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:var(--gold2);width:32px;text-align:center;}
+.rank-pos.top{color:var(--gold);}
+.rank-info{flex:1;min-width:0;}
+.rank-name{font-size:12.5px;color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rank-city{font-size:10.5px;color:var(--gray);margin-top:1px;}
+.rank-vals{text-align:right;}
+.rank-main{font-size:14px;font-weight:700;color:var(--green);}
+.rank-sub{font-size:10px;color:var(--amber);margin-top:1px;}
+
+/* ── AI BANNER ── */
+.ai-banner{background:linear-gradient(135deg,rgba(124,58,237,.15),rgba(167,139,250,.08));border:1px solid rgba(167,139,250,.3);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:11.5px;color:#c7b8ed;display:flex;align-items:center;gap:8px;}
+.ai-banner.processing{animation:pulse 1.5s infinite;}
+
+/* ── TAB INFO ── */
+.tab-info{background:var(--bg3);border-left:3px solid var(--gold2);padding:10px 14px;border-radius:0 8px 8px 0;margin-bottom:14px;font-size:11.5px;color:var(--gray2);line-height:1.5;}
+
+/* ── INQUILINO CARD ── */
+.inq-card{background:linear-gradient(135deg,var(--bg3),var(--bg2));border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;}
+.inq-name{font-size:14px;font-weight:700;color:var(--gold);margin-bottom:6px;}
+.inq-data{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;color:var(--gray2);}
+.inq-data a{color:var(--blue);text-decoration:none;}
+.inq-data a:hover{text-decoration:underline;}
+
+/* ── LOGIN SCREEN ── */
+#login-screen{position:fixed;inset:0;z-index:1000;background:radial-gradient(ellipse at top,#1c2235 0%,#0a0d14 60%);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .4s ease;}
+#login-screen.hidden{display:none;}
+.login-box{width:100%;max-width:420px;background:linear-gradient(180deg,rgba(20,24,36,.95),rgba(15,19,32,.95));border:1px solid var(--gold3);border-radius:20px;padding:36px 28px;box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 80px rgba(212,183,119,.08);position:relative;}
+.login-box::before{content:'';position:absolute;top:-1px;left:20%;right:20%;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent);}
+.login-logo{width:84px;height:84px;border-radius:22px;background:linear-gradient(135deg,var(--gold),var(--gold3));display:flex;align-items:center;justify-content:center;color:#0a0d14;font-family:'Playfair Display',serif;font-weight:900;font-size:36px;margin:0 auto 20px;box-shadow:0 8px 28px rgba(212,183,119,.35);letter-spacing:-1px;}
+.login-brand{text-align:center;margin-bottom:28px;}
+.login-sub{font-size:9.5px;letter-spacing:4px;color:var(--gold2);text-transform:uppercase;font-weight:600;margin-bottom:6px;}
+.login-title{font-family:'Playfair Display',serif;font-size:24px;font-weight:700;color:var(--gold);letter-spacing:.3px;margin-bottom:4px;}
+.login-tagline{font-size:11px;color:var(--gray2);font-style:italic;letter-spacing:.5px;}
+.login-divider{display:flex;align-items:center;gap:10px;margin:24px 0 20px;}
+.login-divider .line{flex:1;height:1px;background:var(--border);}
+.login-divider .text{font-size:9px;color:var(--gray);letter-spacing:2.5px;text-transform:uppercase;font-weight:600;}
+.role-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px;}
+.role-tab{padding:11px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;text-align:center;cursor:pointer;transition:all .25s;}
+.role-tab.active{background:linear-gradient(135deg,rgba(212,183,119,.15),rgba(184,149,90,.08));border-color:var(--gold2);}
+.role-icon{font-size:18px;margin-bottom:3px;}
+.role-name{font-size:11px;font-weight:700;color:var(--gold);letter-spacing:.5px;text-transform:uppercase;}
+.role-desc{font-size:9.5px;color:var(--gray2);margin-top:2px;}
+.login-input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:10px;color:var(--gold);padding:14px 16px;font-size:15px;font-family:'Inter',sans-serif;-webkit-appearance:none;letter-spacing:.3px;text-align:center;margin-bottom:14px;transition:border-color .2s;}
+.login-input:focus{outline:none;border-color:var(--gold);}
+.login-input::placeholder{color:var(--gray);letter-spacing:2px;}
+.login-btn{width:100%;background:linear-gradient(135deg,var(--gold),var(--gold3));border:none;border-radius:10px;color:#0a0d14;padding:14px 18px;font-size:14px;font-weight:700;font-family:'Inter',sans-serif;cursor:pointer;letter-spacing:.5px;text-transform:uppercase;box-shadow:0 4px 18px rgba(212,183,119,.25);transition:all .2s;}
+.login-btn:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(212,183,119,.4);}
+.login-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+.login-error{background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);color:var(--red);font-size:12px;padding:10px;border-radius:8px;margin-bottom:12px;text-align:center;animation:fadeIn .2s;}
+.login-footer{margin-top:24px;text-align:center;font-size:10px;color:var(--gray);letter-spacing:1.5px;}
+.login-footer .dot{color:var(--gold2);margin:0 6px;}
+
+/* ── HEADER LOGOUT ── */
+.h-actions{display:flex;align-items:center;gap:10px;}
+.h-role-badge{font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:4px 10px;border-radius:12px;border:1px solid;}
+.h-role-badge.admin{background:rgba(212,183,119,.12);color:var(--gold);border-color:var(--gold3);}
+.h-role-badge.consultor{background:rgba(96,165,250,.12);color:var(--blue);border-color:rgba(96,165,250,.3);}
+.h-logout{width:36px;height:36px;border-radius:10px;background:var(--bg3);border:1px solid var(--border);color:var(--gray2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;transition:all .2s;}
+.h-logout:hover{border-color:var(--red);color:var(--red);background:var(--red-glow);}
+
+/* ── READ-ONLY MODE ── */
+body.consultor .admin-only{display:none !important;}
+body.consultor .gact{display:none !important;}
+body.consultor .btn-p,
+body.consultor .btn-sm,
+body.consultor .btn-d,
+body.consultor .btn-ai{pointer-events:none;opacity:.4;}
+.readonly-hidden{display:none !important;}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     LOGIN SCREEN
+═══════════════════════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">DG</div>
+    <div class="login-brand">
+      <div class="login-sub">DelSanto &amp; Gos Investment</div>
+      <div class="login-title">Private Wealth</div>
+      <div class="login-tagline">— Gestión Patrimonial Inmobiliaria —</div>
+    </div>
+    <div class="login-divider"><div class="line"></div><div class="text">Acceso seguro</div><div class="line"></div></div>
+    <div class="role-tabs">
+      <div class="role-tab active" id="role-admin" onclick="selectRole('admin')">
+        <div class="role-icon">👑</div><div class="role-name">Administrador</div><div class="role-desc">Acceso total</div>
+      </div>
+      <div class="role-tab" id="role-consultor" onclick="selectRole('consultor')">
+        <div class="role-icon">👁</div><div class="role-name">Consultor</div><div class="role-desc">Solo lectura</div>
+      </div>
+    </div>
+    <div id="login-error-box"></div>
+    <input type="password" class="login-input" id="login-pwd" placeholder="• • • • • • • •" autocomplete="off" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" id="login-btn" onclick="doLogin()">Iniciar sesión</button>
+    <div class="login-footer">Sesión segura<span class="dot">•</span>Cifrado SSL<span class="dot">•</span>Auto-cierre 30 min</div>
+  </div>
+</div>
+
+<div class="header">
+  <div class="h-top">
+    <div class="h-brand">
+      <div class="h-sub">DelSanto &amp; Gos Investment</div>
+      <div class="h-title">Private Wealth</div>
+    </div>
+    <div class="h-actions">
+      <span class="h-role-badge" id="h-role-badge">—</span>
+      <button class="h-logout" onclick="doLogout()" title="Cerrar sesión">⏻</button>
+    </div>
+  </div>
+  <div class="h-stats">
+    <div class="h-stat"><div class="h-stat-label">Patrimonio</div><div class="h-stat-val" style="color:var(--gold)" id="hNet">—</div><div class="h-stat-sub" id="hNetSub">cargando...</div></div>
+    <div class="h-stat"><div class="h-stat-label">Ingresos/mes</div><div class="h-stat-val" style="color:var(--green)" id="hIng">—</div><div class="h-stat-sub" id="hIngSub">alquileres</div></div>
+    <div class="h-stat"><div class="h-stat-label">Ocupación</div><div class="h-stat-val" style="color:var(--blue)" id="hOcu">—</div><div class="h-stat-sub" id="hOcuSub">cartera</div></div>
+  </div>
+</div>
+
+<div class="nav">
+  <button class="nb active" onclick="showTab('cartera')">🏠 Cartera</button>
+  <button class="nb" onclick="showTab('dashboard')">📊 Dashboard</button>
+  <button class="nb" onclick="showTab('detalle')">📋 Detalle</button>
+  <button class="nb admin-only" onclick="showTab('gastos')">🧾 Gastos</button>
+  <button class="nb admin-only" onclick="showTab('reformas')">🔨 Reformas</button>
+  <button class="nb" onclick="showTab('alertas')">⚠️ Alertas</button>
+  <button class="nb admin-only" onclick="showTab('fiscal')">📑 Fiscal</button>
+  <button class="nb admin-only" onclick="showTab('ajustes')">⚙️ Ajustes</button>
+</div>
+
+<div class="main">
+
+  <!-- CARTERA -->
+  <div id="tab-cartera" class="tab active">
+    <div id="kpis" class="kgrid"></div>
+    <div id="filtros" class="filtros"></div>
+    <button class="btn-p admin-only" onclick="openModal('inmueble',{})">+ Nuevo inmueble</button>
+    <div id="lista-inm"><div class="loading"><div class="spin"></div><br>Cargando cartera...</div></div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="tab-dashboard" class="tab">
+    <div class="tab-info">Visión global de tu cartera inmobiliaria: distribución, rendimiento y evolución.</div>
+    <div id="dash-kpis" class="kgrid"></div>
+    <div class="chart-box"><div class="chart-title">Distribución por ciudad</div><div class="chart-wrap"><canvas id="ch-ciudad"></canvas></div></div>
+    <div class="chart-box"><div class="chart-title">Distribución por tipo</div><div class="chart-wrap"><canvas id="ch-tipo"></canvas></div></div>
+    <div class="chart-box"><div class="chart-title">Ingresos vs Gastos (últimos 12 meses)</div><div class="chart-wrap tall"><canvas id="ch-flujo"></canvas></div></div>
+    <div class="chart-box"><div class="chart-title">Rentabilidad neta por ciudad</div><div class="chart-wrap"><canvas id="ch-rentciudad"></canvas></div></div>
+    <div class="card"><div class="ct">🏆 Ranking · Rentabilidad neta</div><div id="ranking"></div>
+      <div style="margin-top:10px;font-size:10px;color:var(--gray);line-height:1.5;padding:8px;background:var(--bg3);border-radius:6px">
+        Neta real = (Alquiler anual − Gastos recurrentes − Intereses hipoteca) ÷ Inversión total.<br>
+        Solo los <strong>intereses</strong> se descuentan como gasto real. La amortización de capital no resta porque es transformar cash en patrimonio.
+      </div>
+    </div>
+    <div class="card"><div class="ct">💎 Ranking · Rentabilidad bruta</div><div id="ranking-bruto"></div>
+      <div style="margin-top:10px;font-size:10px;color:var(--gray);line-height:1.5;padding:8px;background:var(--bg3);border-radius:6px">
+        Bruta = Alquiler anual ÷ Inversión total. Muestra el potencial del inmueble antes de gastos y financiación.
+      </div>
+    </div>
+  </div>
+
+  <!-- DETALLE -->
+  <div id="tab-detalle" class="tab">
+    <select class="sel-inm" id="det-sel" onchange="renderDetalle()">
+      <option value="">— Selecciona un inmueble —</option>
+    </select>
+    <div id="det-content"></div>
+  </div>
+
+  <!-- GASTOS -->
+  <div id="tab-gastos" class="tab">
+    <div class="ai-banner">✨ <span>Añade un gasto con foto y la IA extraerá importe, fecha y proveedor automáticamente.</span></div>
+    <div class="sh">
+      <div><div class="st">Total gastos</div><div id="tot-gas" style="font-size:24px;font-weight:700;color:var(--red);letter-spacing:-.5px">—</div></div>
+      <button class="btn-sm" onclick="openModal('gasto',{})">+ Nuevo gasto</button>
+    </div>
+    <div id="lista-gas-g"></div>
+  </div>
+
+  <!-- REFORMAS -->
+  <div id="tab-reformas" class="tab">
+    <div class="sh">
+      <div><div class="st">Presupuesto total</div><div id="tot-ref" style="font-size:24px;font-weight:700;color:var(--amber);letter-spacing:-.5px">—</div></div>
+      <button class="btn-sm" onclick="openModal('reforma',{})">+ Nueva reforma</button>
+    </div>
+    <div id="lista-ref-g"></div>
+  </div>
+
+  <!-- ALERTAS -->
+  <div id="tab-alertas" class="tab">
+    <div class="tab-info">Contratos próximos a vencer y avisos importantes sobre tu cartera.</div>
+    <div id="lista-alertas"></div>
+  </div>
+
+  <!-- FISCAL -->
+  <div id="tab-fiscal" class="tab">
+    <div class="tab-info">Resumen anual de ingresos y gastos por inmueble para la declaración de la renta.</div>
+    <div class="field"><label>Ejercicio fiscal</label><select id="fiscal-year"></select></div>
+    <button class="btn-p" onclick="exportFiscal()">📥 Exportar resumen (CSV)</button>
+    <div id="fiscal-content"></div>
+  </div>
+
+  <!-- AJUSTES -->
+  <div id="tab-ajustes" class="tab">
+    <div class="tab-info">Configura las contraseñas de acceso a la aplicación. Solo el administrador puede modificarlas.</div>
+
+    <div class="card">
+      <div class="ct">🔐 Cambiar contraseñas</div>
+      <div class="field">
+        <label>Contraseña actual del Administrador (requerida)</label>
+        <input type="password" id="aj-actual" placeholder="Tu contraseña actual">
+      </div>
+      <div style="height:1px;background:var(--border);margin:18px 0"></div>
+      <div class="field">
+        <label>👑 Nueva contraseña Administrador</label>
+        <input type="password" id="aj-new-admin" placeholder="Mínimo 4 caracteres (vacío = no cambiar)">
+      </div>
+      <div class="field">
+        <label>👁 Nueva contraseña Consultor</label>
+        <input type="password" id="aj-new-cons" placeholder="Mínimo 4 caracteres (vacío = no cambiar)">
+      </div>
+      <button class="btn-p" onclick="savePasswords()">💾 Guardar contraseñas</button>
+    </div>
+
+    <div class="card">
+      <div class="ct">ℹ️ Información de niveles</div>
+      <div style="padding:10px;background:var(--bg3);border-radius:8px;margin-bottom:10px">
+        <div style="color:var(--gold);font-weight:700;margin-bottom:6px;font-size:13px">👑 Administrador</div>
+        <div style="font-size:12px;color:var(--gray2);line-height:1.6">Acceso completo a todas las funciones: crear, editar y eliminar inmuebles, gastos, reformas, contratos, incidencias e inquilinos. Acceso al panel de ajustes.</div>
+      </div>
+      <div style="padding:10px;background:var(--bg3);border-radius:8px">
+        <div style="color:var(--blue);font-weight:700;margin-bottom:6px;font-size:13px">👁 Consultor</div>
+        <div style="font-size:12px;color:var(--gray2);line-height:1.6">Solo lectura. Puede ver el patrimonio, los inmuebles, las rentabilidades, el dashboard y las alertas. <strong>No accede</strong> a: contratos PDF, DNI/teléfono/email de inquilinos, gastos detallados, fianzas ni datos bancarios sensibles.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ct">⏱ Sesión actual</div>
+      <div class="srow"><span class="sl">Rol activo</span><strong id="aj-rol" style="color:var(--gold)">—</strong></div>
+      <div class="srow"><span class="sl">Inicio sesión</span><strong id="aj-inicio" style="color:var(--gold)">—</strong></div>
+      <div class="srow"><span class="sl">Última actividad</span><strong id="aj-actividad" style="color:var(--gold)">—</strong></div>
+      <div class="srow"><span class="sl">Auto-cierre en</span><strong id="aj-cierre" style="color:var(--amber)">—</strong></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL -->
+<div class="modal-ov hidden" id="mov" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <button class="mc-btn" onclick="closeModal()">✕</button>
+    <div id="mc"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═════════════════════════════════════════════════════════════════════════════
+// SUPABASE CONFIG
+// ═════════════════════════════════════════════════════════════════════════════
+const SUPA_URL = 'https://gcpgyifxnjlbgwxoonqz.supabase.co';
+const SUPA_KEY = 'sb_publishable_pUSW9Bz7ydyGGaDaGDDeAA_wR6v0Kpm';
+const { createClient } = supabase;
+const db = createClient(SUPA_URL, SUPA_KEY);
+
+// ═════════════════════════════════════════════════════════════════════════════
+// STATE
+// ═════════════════════════════════════════════════════════════════════════════
+let inmuebles=[], gastos=[], reformas=[], cobros=[], incidencias=[], contratos=[];
+let filtro='Todos';
+let charts = {};
+
+const CATS_INV = ['Reforma','Notaría','Gestoría','ITP/AJD','Registro'];
+const CATS_REC = ['IBI','Comunidad','Seguro','Electricidad','Agua','Gas','Suministros','Mantenimiento'];
+
+// ═════════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═════════════════════════════════════════════════════════════════════════════
+const EUR = n => n!=null&&n!=='' ? new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR',maximumFractionDigits:0}).format(n) : '—';
+const EURp = n => n!=null&&n!=='' ? new Intl.NumberFormat('es-ES',{style:'currency',currency:'EUR',maximumFractionDigits:2}).format(n) : '—';
+const fmtDate = d => d ? new Date(d).toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'}) : '—';
+const daysUntil = d => { if(!d) return null; return Math.ceil((new Date(d)-new Date())/86400000); };
+
+const toast = (msg,ok=true) => {
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.style.background=ok?'#1a3a2a':'#3a1a1a';
+  t.style.borderColor=ok?'var(--green)':'var(--red)';
+  t.style.color=ok?'var(--green)':'var(--red)';
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2800);
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+// AUTH / PERMISOS  ───────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+const DEFAULT_PWD = {admin:'admin1234', consultor:'consultor1234'};
+const INACTIVITY_MS = 30 * 60 * 1000; // 30 minutos
+let currentRole = null;
+let selectedRole = 'admin';
+let sessionStart = null;
+let lastActivity = null;
+let inactivityTimer = null;
+let countdownTimer = null;
+
+// Hash simple (no es criptográficamente seguro pero suficiente para evitar leer la contraseña a simple vista en la BD)
+async function hashPwd(pwd){
+  const buf = new TextEncoder().encode(pwd + '_delsanto_gos_salt');
+  const hash = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+async function ensureConfigTable(){
+  // Intenta leer config; si no existe la fila, la crea con valores por defecto
+  const {data, error} = await db.from('app_config').select('*').limit(1);
+  if(error){
+    console.warn('Tabla app_config no existe aún. Continuando con contraseñas por defecto en memoria.');
+    return null;
+  }
+  if(!data || !data.length){
+    const adminH = await hashPwd(DEFAULT_PWD.admin);
+    const consH = await hashPwd(DEFAULT_PWD.consultor);
+    await db.from('app_config').insert({id:1, admin_pwd_hash:adminH, consultor_pwd_hash:consH});
+    return {admin_pwd_hash:adminH, consultor_pwd_hash:consH};
+  }
+  return data[0];
+}
+
+function selectRole(role){
+  selectedRole = role;
+  document.getElementById('role-admin').classList.toggle('active', role==='admin');
+  document.getElementById('role-consultor').classList.toggle('active', role==='consultor');
+  document.getElementById('login-pwd').focus();
+}
+
+async function doLogin(){
+  const pwd = document.getElementById('login-pwd').value;
+  const errBox = document.getElementById('login-error-box');
+  const btn = document.getElementById('login-btn');
+  if(!pwd){
+    errBox.innerHTML = '<div class="login-error">Introduce la contraseña</div>';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Verificando...';
+  errBox.innerHTML = '';
+
+  try {
+    const cfg = await ensureConfigTable();
+    const hashed = await hashPwd(pwd);
+    const expectedHash = cfg
+      ? (selectedRole==='admin' ? cfg.admin_pwd_hash : cfg.consultor_pwd_hash)
+      : await hashPwd(DEFAULT_PWD[selectedRole]);
+
+    if(hashed !== expectedHash){
+      errBox.innerHTML = '<div class="login-error">Contraseña incorrecta</div>';
+      document.getElementById('login-pwd').value = '';
+      btn.disabled = false;
+      btn.textContent = 'Iniciar sesión';
+      return;
+    }
+
+    // Login OK
+    currentRole = selectedRole;
+    sessionStart = new Date();
+    lastActivity = new Date();
+    sessionStorage.setItem('dg_role', currentRole);
+    sessionStorage.setItem('dg_start', sessionStart.toISOString());
+
+    document.body.classList.remove('admin','consultor');
+    document.body.classList.add(currentRole);
+
+    // Actualizar badge en header
+    const badge = document.getElementById('h-role-badge');
+    badge.className = 'h-role-badge ' + currentRole;
+    badge.textContent = currentRole==='admin' ? '👑 Admin' : '👁 Consultor';
+
+    // Ocultar login y arrancar app
+    document.getElementById('login-screen').classList.add('hidden');
+    setupActivityTracking();
+    initApp();
+  } catch(e){
+    errBox.innerHTML = `<div class="login-error">Error: ${e.message}</div>`;
+    btn.disabled = false;
+    btn.textContent = 'Iniciar sesión';
+  }
+}
+
+function doLogout(silent=false){
+  if(!silent && !confirm('¿Cerrar sesión?')) return;
+  currentRole = null;
+  sessionStorage.removeItem('dg_role');
+  sessionStorage.removeItem('dg_start');
+  clearTimeout(inactivityTimer);
+  clearInterval(countdownTimer);
+  document.body.classList.remove('admin','consultor');
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('login-pwd').value = '';
+  document.getElementById('login-error-box').innerHTML = '';
+  document.getElementById('login-btn').disabled = false;
+  document.getElementById('login-btn').textContent = 'Iniciar sesión';
+}
+
+function setupActivityTracking(){
+  ['click','keydown','scroll','touchstart','mousemove'].forEach(ev=>{
+    document.addEventListener(ev, registerActivity, {passive:true});
+  });
+  resetInactivityTimer();
+  countdownTimer = setInterval(updateSessionInfo, 30000);
+}
+
+function registerActivity(){
+  if(!currentRole) return;
+  lastActivity = new Date();
+  resetInactivityTimer();
+}
+
+function resetInactivityTimer(){
+  clearTimeout(inactivityTimer);
+  inactivityTimer = setTimeout(()=>{
+    toast('⏱ Sesión cerrada por inactividad', false);
+    doLogout(true);
+  }, INACTIVITY_MS);
+}
+
+function updateSessionInfo(){
+  if(!currentRole) return;
+  const rol = document.getElementById('aj-rol');
+  if(!rol) return;
+  rol.textContent = currentRole==='admin' ? '👑 Administrador' : '👁 Consultor';
+  document.getElementById('aj-inicio').textContent = sessionStart?sessionStart.toLocaleTimeString('es-ES'):'—';
+  document.getElementById('aj-actividad').textContent = lastActivity?lastActivity.toLocaleTimeString('es-ES'):'—';
+  const restante = INACTIVITY_MS - (Date.now() - lastActivity.getTime());
+  const mins = Math.max(0, Math.floor(restante/60000));
+  const secs = Math.max(0, Math.floor((restante%60000)/1000));
+  document.getElementById('aj-cierre').textContent = `${mins}m ${secs}s`;
+}
+
+async function savePasswords(){
+  const actual = document.getElementById('aj-actual').value;
+  const newAdmin = document.getElementById('aj-new-admin').value;
+  const newCons = document.getElementById('aj-new-cons').value;
+
+  if(!actual){ toast('Introduce la contraseña actual', false); return; }
+  if(!newAdmin && !newCons){ toast('Introduce al menos una nueva contraseña', false); return; }
+  if(newAdmin && newAdmin.length<4){ toast('La contraseña admin debe tener 4+ caracteres', false); return; }
+  if(newCons && newCons.length<4){ toast('La contraseña consultor debe tener 4+ caracteres', false); return; }
+
+  const cfg = await ensureConfigTable();
+  if(!cfg){ toast('Falta tabla app_config en Supabase', false); return; }
+  const actualHash = await hashPwd(actual);
+  if(actualHash !== cfg.admin_pwd_hash){
+    toast('La contraseña actual no es correcta', false);
+    return;
+  }
+
+  const update = {};
+  if(newAdmin) update.admin_pwd_hash = await hashPwd(newAdmin);
+  if(newCons) update.consultor_pwd_hash = await hashPwd(newCons);
+  const {error} = await db.from('app_config').update(update).eq('id', 1);
+  if(error){ toast('Error: '+error.message, false); return; }
+  toast('✅ Contraseñas actualizadas');
+  document.getElementById('aj-actual').value = '';
+  document.getElementById('aj-new-admin').value = '';
+  document.getElementById('aj-new-cons').value = '';
+}
+
+const isAdmin = () => currentRole === 'admin';
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SETUP CHECK — verifica que los buckets de Storage existen
+// ═════════════════════════════════════════════════════════════════════════════
+let setupOk = {facturas:false, contratos:false};
+
+async function checkSetup() {
+  // Comprueba si los buckets existen intentando listar ficheros
+  for(const bucket of ['facturas','contratos']){
+    try {
+      const {error} = await db.storage.from(bucket).list('', {limit:1});
+      setupOk[bucket] = !error || !(error.message||'').toLowerCase().includes('bucket');
+    } catch(e){
+      setupOk[bucket] = false;
+    }
+  }
+  if(!setupOk.facturas || !setupOk.contratos){
+    showSetupBanner();
+  }
+}
+
+function showSetupBanner(){
+  if(document.getElementById('setup-banner')) return;
+  const faltan = [];
+  if(!setupOk.facturas) faltan.push('facturas');
+  if(!setupOk.contratos) faltan.push('contratos');
+  const banner = document.createElement('div');
+  banner.id = 'setup-banner';
+  banner.innerHTML = `
+    <div style="background:linear-gradient(135deg,rgba(251,191,36,.18),rgba(248,113,113,.12));border:1px solid rgba(251,191,36,.4);border-left:4px solid var(--amber);border-radius:10px;padding:14px;margin:14px;color:var(--text);font-size:12.5px;line-height:1.5">
+      <div style="font-weight:700;color:var(--amber);font-size:13px;margin-bottom:8px;display:flex;align-items:center;gap:8px">⚠️ Configuración pendiente en Supabase</div>
+      <div style="color:var(--text2);margin-bottom:10px">Para subir <strong>facturas</strong> y <strong>contratos PDF</strong> faltan estos buckets: <strong style="color:var(--amber)">${faltan.join(', ')}</strong></div>
+      <div style="background:var(--bg3);border-radius:6px;padding:10px;font-size:11.5px;margin-bottom:8px">
+        <div style="color:var(--gold);font-weight:600;margin-bottom:6px">📋 Pasos rápidos:</div>
+        <div style="color:var(--gray2);line-height:1.7">
+          1. Abre <a href="https://supabase.com/dashboard/project/gcpgyifxnjlbgwxoonqz/storage/buckets" target="_blank" style="color:var(--blue);text-decoration:underline">Supabase Storage</a><br>
+          2. Pulsa <strong style="color:var(--gold)">"New bucket"</strong><br>
+          3. Crea ${faltan.map(f=>`<code style="background:var(--bg2);padding:1px 6px;border-radius:3px;color:var(--amber)">${f}</code>`).join(' y ')} con <strong style="color:var(--green)">"Public bucket"</strong> activado ✅<br>
+          4. Recarga esta página
+        </div>
+      </div>
+      <button onclick="checkSetup().then(()=>{if(setupOk.facturas&&setupOk.contratos){document.getElementById('setup-banner').remove();toast('✅ Buckets detectados correctamente');}})" class="btn-sm" style="margin-top:4px">🔄 Volver a comprobar</button>
+      <button onclick="document.getElementById('setup-banner').style.display='none'" class="btn-sm" style="margin-top:4px;margin-left:6px">Ocultar aviso</button>
+    </div>`;
+  document.querySelector('.main').prepend(banner);
+}
+
+function showBucketError(bucket){
+  toast(`⚠️ Bucket "${bucket}" no existe. Mira el aviso amarillo arriba para configurarlo.`, false);
+  setupOk[bucket] = false;
+  showSetupBanner();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// INIT
+// ═════════════════════════════════════════════════════════════════════════════
+async function initApp() {
+  await Promise.all([loadInm(), loadGas(), loadRef(), loadCob(), loadInc(), loadCon()]);
+  renderAll();
+  initFiscalYears();
+  checkSetup();
+  updateSessionInfo();
+}
+
+async function loadInm() {
+  const {data} = await db.from('inmuebles').select('*').order('nombre');
+  if(data) { inmuebles=data; if(!inmuebles.length) await seedInm(); }
+}
+async function loadGas() { const {data}=await db.from('gastos').select('*').order('fecha',{ascending:false}); if(data) gastos=data; }
+async function loadRef() { const {data}=await db.from('reformas').select('*').order('created_at',{ascending:false}); if(data) reformas=data; }
+async function loadCob() { const {data}=await db.from('cobros').select('*').order('fecha',{ascending:false}); if(data) cobros=data; }
+async function loadInc() { const {data}=await db.from('incidencias').select('*').order('fecha',{ascending:false}); if(data) incidencias=data; }
+async function loadCon() { const {data}=await db.from('contratos').select('*').order('fecha_inicio',{ascending:false}); if(data) contratos=data; }
+
+async function seedInm() {
+  const rows=[
+    {nombre:'Vivienda Habitual',direccion:'Duque de Ahumada, 3 - 5 D',ciudad:'Soria',tipo:'Vivienda Habitual',estado:'Ocupada',superficie:'160 m²',cargas:'HIPOTECA *',valor:400000,deuda:0,alquiler:0},
+    {nombre:'Garaje Viv.Habitual P7',direccion:'Duque de Ahumada, 3 - sótano P7',ciudad:'Soria',tipo:'Garaje',estado:'Ocupada',superficie:'39 m²',cargas:'HIPOTECA *',valor:15000,deuda:0,alquiler:0},
+    {nombre:'Garaje Viv.Habitual P9',direccion:'Duque de Ahumada, 3 - sótano P9',ciudad:'Soria',tipo:'Garaje',estado:'Ocupada',superficie:'39 m²',cargas:'HIPOTECA *',valor:15000,deuda:0,alquiler:0},
+    {nombre:'Trastero Viv.Habitual T5',direccion:'Duque de Ahumada, sótano T5',ciudad:'Soria',tipo:'Trastero',estado:'Ocupada',superficie:'11 m²',cargas:'HIPOTECA *',valor:8000,deuda:0,alquiler:0},
+    {nombre:'Trastero Viv.Habitual T4',direccion:'Duque de Ahumada, 3 - sótano T4',ciudad:'Soria',tipo:'Trastero',estado:'Ocupada',superficie:'11 m²',cargas:'HIPOTECA *',valor:8000,deuda:0,alquiler:0},
+    {nombre:'Vivienda + Park + Trast Enrique Pascual',direccion:'Enrique Pascual Oliva, 1 - bajo B',ciudad:'Soria',tipo:'Vivienda',estado:'Alquilado',superficie:'126 m²',cargas:'HIPOTECA',valor:178000,deuda:87000,alquiler:800,tipo_alquiler:'larga'},
+    {nombre:'Casa con jardín Fuentelsaz',direccion:'Maínez, 1 - Fuentelsaz de Soria',ciudad:'Soria',tipo:'Vivienda',estado:'Libre',superficie:'83 m²',cargas:'LIBRE',valor:40000,deuda:0,alquiler:0},
+    {nombre:'Local Bocatería Palafox',direccion:'Venerable Palafox, 3',ciudad:'Soria',tipo:'Local Comercial',estado:'Libre',superficie:'88 m²',cargas:'LIBRE',valor:240000,deuda:0,alquiler:0},
+    {nombre:'Local Bandalay',direccion:'Tejera, 7 - bajo',ciudad:'Soria',tipo:'Local Comercial',estado:'Alquilado',superficie:'438 m²',cargas:'HIPOTECA *',valor:600000,deuda:638000,alquiler:1530,tipo_alquiler:'larga'},
+    {nombre:'Vivienda Doctor Simonena',direccion:'Doctor Simonena, 2 - 3 D',ciudad:'Pamplona',tipo:'Vivienda',estado:'Alquilado',superficie:'81 m²',cargas:'HIPOTECA',valor:180000,deuda:106000,alquiler:819,tipo_alquiler:'larga'},
+    {nombre:'Vivienda Travesía Huertas',direccion:'Travesía Huertas, 4 - 2',ciudad:'Pamplona',tipo:'Vivienda',estado:'Alquilado',superficie:'88 m²',cargas:'HIPOTECA',valor:232000,deuda:131000,alquiler:1177,tipo_alquiler:'larga'},
+    {nombre:'Apto. Lisa la Mata',direccion:'Lisa la Mata, 2 - 1 9 - Torrevieja',ciudad:'Alicante',tipo:'Apartamento Turístico',estado:'Alquilado',superficie:'30 m²',cargas:'LIBRE',valor:91000,deuda:0,alquiler:1200,tipo_alquiler:'vacacional'},
+    {nombre:'Apto. Poeta Vila y Blanco',direccion:'Poeta Vila y Blanco 4, planta 26, pta 329',ciudad:'Alicante',tipo:'Apartamento Turístico',estado:'Alquilado',superficie:'37 m²',cargas:'LIBRE',valor:205000,deuda:0,alquiler:2500,tipo_alquiler:'vacacional'},
+    {nombre:'Apto. Canonge Mateu Rotger',direccion:'Canonge Mateu Rotger, 28 - 3 F',ciudad:'Palma Mallorca',tipo:'Apartamento Turístico',estado:'Alquilado',superficie:'91 m²',cargas:'LIBRE',valor:310000,deuda:0,alquiler:3780,tipo_alquiler:'vacacional'},
+    {nombre:'Vivienda + Garaje La Sal',direccion:'La Sal, 29 - bajo - Torrevieja',ciudad:'Alicante',tipo:'Vivienda',estado:'Alquilado',superficie:'50 m²',cargas:'LIBRE',valor:150000,deuda:0,alquiler:750,tipo_alquiler:'larga'},
+    {nombre:'Vivienda + Garaje Gabino',direccion:'Travesía Gabino, 19 - Torrevieja',ciudad:'Alicante',tipo:'Vivienda',estado:'Alquilado',superficie:'75 m²',cargas:'HIPOTECA',valor:170000,deuda:101000,alquiler:850,tipo_alquiler:'larga'},
+    {nombre:'Vivienda Alona (Vendida)',direccion:'Alona, 26 - 2º Alicante',ciudad:'Alicante',tipo:'Vivienda',estado:'Vendido',superficie:'105 m²',cargas:'LIBRE',valor:240000,deuda:0,alquiler:0},
+    {nombre:'Vivienda Ancora Madrid',direccion:'Ancora, 7 - 1º A (Atocha)',ciudad:'Madrid',tipo:'Vivienda',estado:'Alquilado',superficie:'95 m²',cargas:'HIPOTECA',valor:599000,deuda:230000,alquiler:3760,tipo_alquiler:'larga'},
+    {nombre:'Vivienda Asunción 58',direccion:'Asunción, 58 - Torrevieja',ciudad:'Alicante',tipo:'Vivienda',estado:'Alquilado',superficie:'177 m²',cargas:'HIPOTECA',valor:494000,deuda:310000,alquiler:2370,tipo_alquiler:'larga'},
+    {nombre:'Vivienda Hab. Madrid Alcalá',direccion:'Alcalá, 145 - 3 C',ciudad:'Madrid',tipo:'Vivienda Habitual',estado:'Ocupada',superficie:'178 m²',cargas:'HIPOTECA',valor:3200000,deuda:920000,alquiler:0},
+    {nombre:'Vivienda Avenida San José',direccion:'Avenida San José 66, 2E',ciudad:'Zaragoza',tipo:'Vivienda',estado:'Alquilado',superficie:'56 m²',cargas:'LIBRE',valor:157000,deuda:0,alquiler:900,tipo_alquiler:'larga'},
+    {nombre:'Vivienda Don Manuel Martínez',direccion:'Rda Don Manuel Martínez Guira 2, 3-25',ciudad:'Alicante',tipo:'Vivienda',estado:'Alquilado',superficie:'55 m²',cargas:'LIBRE',valor:145000,deuda:0,alquiler:800,tipo_alquiler:'larga'},
+    {nombre:'Vivienda Calle Huerta',direccion:'Calle Huerta, 29 - 1º C',ciudad:'Torrevieja',tipo:'Vivienda',estado:'Alquilado',superficie:'57 m²',cargas:'LIBRE',valor:155000,deuda:0,alquiler:850,tipo_alquiler:'larga'},
+  ];
+  const {data}=await db.from('inmuebles').insert(rows).select();
+  if(data) inmuebles=data;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// RENDER ALL
+// ═════════════════════════════════════════════════════════════════════════════
+function renderAll() {
+  renderKpis(); renderFiltros(); renderListaInm(); renderDetSel();
+  renderGasGlobal(); renderRefGlobal(); renderAlertas();
+  renderDashboard(); updateHeader();
+}
+
+function updateHeader() {
+  const act = inmuebles.filter(i=>i.estado!=='Vendido');
+  const v = act.reduce((s,i)=>s+(i.valor||0),0);
+  const d = inmuebles.reduce((s,i)=>s+(i.deuda||0),0);
+  const alq = inmuebles.filter(i=>i.estado==='Alquilado');
+  const ingresos = calcularIngresosMensuales();
+  const rentables = act.filter(i=>i.tipo!=='Vivienda Habitual' && i.tipo!=='Garaje' && i.tipo!=='Trastero');
+  const ocupacion = rentables.length ? Math.round(alq.length/rentables.length*100) : 0;
+
+  document.getElementById('hNet').textContent = EUR(v-d);
+  document.getElementById('hNetSub').textContent = `${act.length} activos · deuda ${EUR(d)}`;
+  document.getElementById('hIng').textContent = EUR(ingresos);
+  document.getElementById('hIngSub').textContent = `${alq.length} alquilados`;
+  document.getElementById('hOcu').textContent = ocupacion + '%';
+  document.getElementById('hOcuSub').textContent = `${alq.length}/${rentables.length} inmuebles`;
+}
+
+function calcularIngresosMensuales() {
+  return inmuebles.filter(i=>i.estado==='Alquilado').reduce((s,i)=>{
+    if(i.tipo_alquiler==='habitaciones' && i.habitaciones_ocupadas && i.precio_habitacion) {
+      return s + (i.habitaciones_ocupadas * i.precio_habitacion);
+    }
+    if(i.tipo_alquiler==='vacacional' && i.precio_noche && i.ocupacion_media) {
+      return s + (i.precio_noche * 30 * (i.ocupacion_media/100));
+    }
+    return s + (i.alquiler||0);
+  },0);
+}
+
+// ─── FUNCIÓN ÚNICA DE CASHFLOW ────────────────────────────────────────────────
+// Fuente única de verdad para el cashflow mensual de la cartera.
+// La usan tanto la pestaña Cartera como el Dashboard para garantizar consistencia.
+//
+// Fórmula cashflow REAL (dinero que entra a caja cada mes):
+//   Ingresos alquiler − Cuota hipoteca total − Gastos recurrentes mensualizados (12m)
+//
+// Fórmula cashflow PATRIMONIAL (aumento real de riqueza):
+//   Ingresos alquiler − Interés hipoteca − Gastos recurrentes mensualizados (12m)
+//   (la amortización de capital no resta porque transforma cash en patrimonio)
+//
+// Nota: la categoría "Hipoteca" en gastos se excluye porque ya se contabiliza en cuota_hipoteca.
+function calcularCashflowMensual() {
+  const ingresos = calcularIngresosMensuales();
+  const cuotas = inmuebles.reduce((s,i)=>s+(i.cuota_hipoteca||0),0);
+  const intereses = inmuebles.reduce((s,i)=>{
+    const c = i.cuota_hipoteca||0;
+    return s + (i.interes_hipoteca != null ? i.interes_hipoteca : c);
+  },0);
+  const amortizacion = Math.max(0, cuotas - intereses);
+  // Solo gastos recurrentes de los últimos 12 meses, mensualizados
+  const hoy = new Date();
+  const hace12m = new Date(hoy.getFullYear(), hoy.getMonth()-12, hoy.getDate()).toISOString().slice(0,10);
+  const gastosRec12m = gastos.filter(g =>
+    CATS_REC.includes(g.categoria) &&
+    g.fecha && g.fecha >= hace12m
+  ).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
+  const gastosMes = gastosRec12m / 12;
+  return {
+    ingresos,
+    cuotas,
+    intereses,
+    amortizacion,
+    gastosMes,
+    cashflow: ingresos - cuotas - gastosMes,          // real (a caja)
+    cashflowPatrimonial: ingresos - intereses - gastosMes  // patrimonial (contando amort. como riqueza)
+  };
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// KPIS CARTERA
+// ═════════════════════════════════════════════════════════════════════════════
+function renderKpis() {
+  const act = inmuebles.filter(i=>i.estado!=='Vendido');
+  const alq = inmuebles.filter(i=>i.estado==='Alquilado');
+  const libres = inmuebles.filter(i=>i.estado==='Libre');
+  const cf = calcularCashflowMensual();
+
+  document.getElementById('kpis').innerHTML = [
+    ['Activos', act.length, 'var(--gold)', `${libres.length} libres`],
+    ['Alquilados', alq.length, 'var(--green)', 'en renta'],
+    ['Valor cartera', EUR(act.reduce((s,i)=>s+(i.valor||0),0)), 'var(--gold)', 'valor de mercado'],
+    ['Cashflow/mes', EUR(cf.cashflow), cf.cashflow>=0?'var(--green)':'var(--red)', `ing. ${EUR(cf.ingresos)}`],
+  ].map(([l,v,c,s])=>`<div class="kpi" style="--accent:${c}"><div class="kl">${l}</div><div class="kv" style="color:${c}">${v}</div><div class="ks">${s}</div></div>`).join('');
+}
+
+function renderFiltros() {
+  const estats=['Todos','Alquilado','Libre','En Reforma','En Venta','Ocupada','Vendido'];
+  document.getElementById('filtros').innerHTML=estats.map(e=>`<button class="fb ${filtro===e?'active':''}" onclick="setFiltro('${e}')">${e}</button>`).join('');
+}
+function setFiltro(e){filtro=e;renderFiltros();renderListaInm();}
+
+function badgeE(e){
+  const m={Alquilado:'alquilado',Libre:'libre','En Reforma':'reforma','En Venta':'venta',Vendido:'vendido',Ocupada:'ocupada'};
+  return `<span class="badge b-${m[e]||'libre'}">${e}</span>`;
+}
+function estadoColor(e){
+  return {Alquilado:'#4ade80',Libre:'#60a5fa','En Reforma':'#fbbf24','En Venta':'#a78bfa',Vendido:'#6b7280',Ocupada:'#60a5fa'}[e] || '#d4b777';
+}
+function labelTA(t){return{larga:'Larga estancia',vacacional:'Vacacional',habitaciones:'Por habitaciones'}[t]||t;}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// LISTA INMUEBLES POR CIUDAD
+// ═════════════════════════════════════════════════════════════════════════════
+function renderListaInm() {
+  let lista = filtro==='Todos' ? inmuebles : inmuebles.filter(i=>i.estado===filtro);
+  if(!lista.length){
+    document.getElementById('lista-inm').innerHTML='<div class="empty">No hay inmuebles en esta categoría</div>';
+    return;
+  }
+
+  // Agrupar por ciudad, ordenar ciudades por valor total desc
+  const grupos = {};
+  lista.forEach(i=>{
+    if(!grupos[i.ciudad]) grupos[i.ciudad] = [];
+    grupos[i.ciudad].push(i);
+  });
+  Object.keys(grupos).forEach(c=>grupos[c].sort((a,b)=>(b.valor||0)-(a.valor||0)));
+  const ciudadesOrd = Object.keys(grupos).sort((a,b)=>{
+    const sa = grupos[a].reduce((s,i)=>s+(i.valor||0),0);
+    const sb = grupos[b].reduce((s,i)=>s+(i.valor||0),0);
+    return sb-sa;
+  });
+
+  let html = '';
+  ciudadesOrd.forEach(ciudad=>{
+    const items = grupos[ciudad];
+    html += `<div class="ciudad-sep"><div class="cs-name">${ciudad}</div><div class="cs-line"></div><div class="cs-count">${items.length} ${items.length===1?'inm.':'inms.'}</div></div>`;
+    html += items.map(i=>renderInmCard(i)).join('');
+  });
+  document.getElementById('lista-inm').innerHTML = html;
+}
+
+function renderInmCard(i) {
+  const rent = i.alquiler && (i.subasta||i.valor) ? ((i.alquiler*12/(i.subasta||i.valor))*100).toFixed(1)+'%' : '—';
+  const dias = daysUntil(i.fecha_fin_contrato);
+  const alertaContrato = dias!=null && dias>0 && dias<=90;
+
+  return `<div class="inm-card" style="--estado-color:${estadoColor(i.estado)}" onclick="goDetalle(${i.id})">
+    <div class="inm-header">
+      <div><div class="inm-n">${i.nombre}</div><div class="inm-d">${i.direccion}</div></div>
+      <div class="inm-badges">${badgeE(i.estado)}${alertaContrato?`<span class="badge b-alert">${dias}d</span>`:''}</div>
+    </div>
+    ${i.tipo_alquiler?`<div style="margin-top:6px"><span class="badge b-tipo">${labelTA(i.tipo_alquiler)}</span></div>`:''}
+    <div class="inm-metrics">
+      <div class="inm-metric"><div class="inm-metric-label">Valor</div><div class="inm-metric-value" style="color:var(--gold)">${EUR(i.valor)}</div></div>
+      <div class="inm-metric"><div class="inm-metric-label">Deuda</div><div class="inm-metric-value" style="color:${i.deuda?'var(--red)':'var(--gray)'}">${i.deuda?EUR(i.deuda):'—'}</div></div>
+      <div class="inm-metric"><div class="inm-metric-label">Renta/mes</div><div class="inm-metric-value" style="color:var(--green)">${i.alquiler?EUR(i.alquiler):'—'}</div></div>
+      <div class="inm-metric"><div class="inm-metric-label">Rent.</div><div class="inm-metric-value" style="color:var(--amber)">${rent}</div></div>
+    </div>
+  </div>`;
+}
+
+function goDetalle(id){
+  document.getElementById('det-sel').value=id;
+  showTab('detalle');
+  renderDetalle();
+}
+
+function renderDetSel(){
+  const ciudades = {};
+  inmuebles.forEach(i=>{if(!ciudades[i.ciudad])ciudades[i.ciudad]=[];ciudades[i.ciudad].push(i);});
+  let html = '<option value="">— Selecciona un inmueble —</option>';
+  Object.keys(ciudades).sort().forEach(c=>{
+    html += `<optgroup label="${c}">`;
+    ciudades[c].forEach(i=>{html += `<option value="${i.id}">${i.nombre}</option>`;});
+    html += '</optgroup>';
+  });
+  document.getElementById('det-sel').innerHTML = html;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// DETALLE INMUEBLE
+// ═════════════════════════════════════════════════════════════════════════════
+function renderDetalle(){
+  const id=parseInt(document.getElementById('det-sel').value);
+  const inm=inmuebles.find(i=>i.id===id);
+  const el=document.getElementById('det-content');
+  if(!inm){el.innerHTML='<div class="empty">Selecciona un inmueble arriba para ver su ficha completa</div>';return;}
+
+  const gasInm=gastos.filter(g=>g.inmueble_id===id);
+  const cobInm=cobros.filter(c=>c.inmueble_id===id);
+  const refInm=reformas.filter(r=>r.inmueble_id===id);
+  const incInm=incidencias.filter(x=>x.inmueble_id===id);
+  const conInm=contratos.filter(x=>x.inmueble_id===id);
+
+  const gInv = gasInm.filter(g=>CATS_INV.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
+  const gRec = gasInm.filter(g=>CATS_REC.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
+  const rCost = refInm.reduce((s,r)=>s+(parseFloat(r.coste_real||r.presupuesto)||0),0);
+  const inversion = (inm.subasta||inm.valor||0) + gInv + rCost;
+
+  // Ingresos mensuales efectivos según tipo
+  let ingresoMes = inm.alquiler || 0;
+  if(inm.tipo_alquiler==='habitaciones' && inm.habitaciones_ocupadas && inm.precio_habitacion)
+    ingresoMes = inm.habitaciones_ocupadas * inm.precio_habitacion;
+  if(inm.tipo_alquiler==='vacacional' && inm.precio_noche && inm.ocupacion_media)
+    ingresoMes = inm.precio_noche * 30 * (inm.ocupacion_media/100);
+
+  const alquilerAnual = ingresoMes * 12;
+  const cuotaMes = inm.cuota_hipoteca || 0;
+  const interesMes = inm.interes_hipoteca != null ? inm.interes_hipoteca : cuotaMes;
+  const amortMes = Math.max(0, cuotaMes - interesMes);
+  const gastosMes = gRec/12;
+  // Cashflow real (dinero que entra al bolsillo cada mes): resta la cuota entera porque la salida real de caja incluye amortización
+  const cashflow = ingresoMes - cuotaMes - gastosMes;
+  // Cashflow patrimonial (dinero que aumenta tu riqueza): amortización cuenta como generación de patrimonio
+  const cashflowPatrimonial = ingresoMes - interesMes - gastosMes;
+
+  const rentBruta = inversion>0 && alquilerAnual>0 ? (alquilerAnual/inversion*100).toFixed(1)+'%' : '—';
+  // Rentabilidad neta real: solo intereses restan (amortización no es gasto, es transformar cash en patrimonio)
+  const rentNeta = inversion>0 && alquilerAnual>0 ? ((alquilerAnual-gRec-(interesMes*12))/inversion*100).toFixed(1)+'%' : '—';
+
+  const diasContrato = daysUntil(inm.fecha_fin_contrato);
+  const alertaContrato = diasContrato!=null && diasContrato>0 && diasContrato<=90;
+  const inmd=JSON.stringify(inm).replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+
+  // Campos dinámicos según tipo_alquiler
+  let tipoAlquilerInfo = '';
+  if(inm.tipo_alquiler==='habitaciones') {
+    tipoAlquilerInfo = `
+      <div class="srow"><span class="sl">Nº habitaciones</span><strong style="color:var(--gold)">${inm.num_habitaciones||'—'}</strong></div>
+      <div class="srow"><span class="sl">Ocupadas</span><strong style="color:var(--green)">${inm.habitaciones_ocupadas||0}</strong></div>
+      <div class="srow"><span class="sl">Precio/habitación</span><strong style="color:var(--amber)">${EUR(inm.precio_habitacion)}</strong></div>`;
+  } else if(inm.tipo_alquiler==='vacacional') {
+    tipoAlquilerInfo = `
+      <div class="srow"><span class="sl">Precio/noche</span><strong style="color:var(--gold)">${EUR(inm.precio_noche)}</strong></div>
+      <div class="srow"><span class="sl">Ocupación media</span><strong style="color:var(--green)">${inm.ocupacion_media?inm.ocupacion_media+'%':'—'}</strong></div>
+      <div class="srow"><span class="sl">Ingresos estimados/mes</span><strong style="color:var(--amber)">${EUR(ingresoMes)}</strong></div>`;
+  }
+
+  el.innerHTML=`
+    ${alertaContrato?`<div class="contrato-alert"><div class="ca-icon">⚠️</div><div class="ca-content"><div class="ca-title">Contrato finaliza en ${diasContrato} días</div><div class="ca-sub">${fmtDate(inm.fecha_fin_contrato)} · Revisa renovación o nuevo inquilino</div></div></div>`:''}
+
+    <div class="cf-card">
+      <div class="cf-title">💰 Cash flow mensual</div>
+      <div class="cf-main"><span class="cf-label">Neto real (a caja)</span><span class="cf-val" style="color:${cashflow>=0?'var(--green)':'var(--red)'}">${EURp(cashflow)}</span></div>
+      <div class="cf-grid">
+        <div class="cf-item"><span class="cf-label">+ Ingreso</span><strong style="color:var(--green)">${EUR(ingresoMes)}</strong></div>
+        <div class="cf-item"><span class="cf-label">− Cuota hipoteca</span><strong style="color:var(--red)">${EUR(cuotaMes)}</strong></div>
+        <div class="cf-item"><span class="cf-label">− Gastos/mes</span><strong style="color:var(--red)">${EURp(gastosMes)}</strong></div>
+        <div class="cf-item"><span class="cf-label">Anual</span><strong style="color:${cashflow>=0?'var(--green)':'var(--red)'}">${EUR(cashflow*12)}</strong></div>
+      </div>
+      ${cuotaMes>0?`
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+          <span class="cf-label">Cashflow patrimonial <span style="color:var(--gray);font-size:10px">(cuenta amortización como riqueza)</span></span>
+          <strong style="color:${cashflowPatrimonial>=0?'var(--green)':'var(--red)'};font-size:16px">${EURp(cashflowPatrimonial)}</strong>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px;margin-top:8px">
+          <div style="padding:6px 8px;background:rgba(74,222,128,.08);border-radius:6px">
+            <div style="color:var(--gray);font-size:9px;letter-spacing:1px;text-transform:uppercase">Amortización/mes</div>
+            <strong style="color:var(--green)">${EUR(amortMes)}</strong>
+            <div style="color:var(--gray2);font-size:9.5px;margin-top:2px">→ aumenta patrimonio</div>
+          </div>
+          <div style="padding:6px 8px;background:rgba(248,113,113,.08);border-radius:6px">
+            <div style="color:var(--gray);font-size:9px;letter-spacing:1px;text-transform:uppercase">Interés/mes</div>
+            <strong style="color:var(--red)">${EUR(interesMes)}</strong>
+            <div style="color:var(--gray2);font-size:9.5px;margin-top:2px">→ gasto real</div>
+          </div>
+        </div>
+      </div>`:''}
+    </div>
+
+    <div class="card">
+      <div class="ct">Ficha del inmueble</div>
+      ${[['Nombre',inm.nombre],['Dirección',inm.direccion],['Ciudad',inm.ciudad],['Tipo',inm.tipo],['Superficie',inm.superficie],['Cargas',inm.cargas]].map(([l,v])=>`<div class="srow"><span class="sl">${l}</span><span style="color:var(--gold);text-align:right;max-width:60%">${v||'—'}</span></div>`).join('')}
+      <div class="srow"><span class="sl">Estado</span>${badgeE(inm.estado)}</div>
+      ${inm.tipo_alquiler?`<div class="srow"><span class="sl">Modalidad alquiler</span><span class="badge b-tipo">${labelTA(inm.tipo_alquiler)}</span></div>`:''}
+      ${tipoAlquilerInfo}
+      ${inm.notas?`<div style="margin-top:10px;font-size:12px;color:var(--gray2);font-style:italic;padding:10px;background:var(--bg3);border-radius:8px">${inm.notas}</div>`:''}
+      <button class="btn-sm" style="margin-top:12px" onclick='editInm(${inmd})'>✏️ Editar ficha</button>
+    </div>
+
+    <div class="card">
+      <div class="sh"><div class="ct" style="margin-bottom:0">Financiero</div><button class="btn-sm" onclick="openModal('financiero',${JSON.stringify(inm).replace(/"/g,'&quot;')})">✏️ Editar</button></div>
+      ${[
+        ['Precio subasta',EUR(inm.subasta),'var(--gold)'],
+        ['Gastos adq.+reforma',EUR(gInv+rCost),'var(--amber)'],
+        ['Inversión total',EUR(inversion),'var(--gold)'],
+        ['Valor actual',EUR(inm.valor),'var(--green)'],
+        ['Deuda hipotecaria',EUR(inm.deuda),'var(--red)'],
+        ['Cuota hipoteca/mes',EUR(cuotaMes),'var(--red)'],
+        ['— Intereses/mes',EUR(interesMes),'var(--red)'],
+        ['— Amortización/mes',EUR(amortMes),'var(--green)'],
+        ['Patrimonio neto',EUR((inm.valor||0)-(inm.deuda||0)),'var(--blue)'],
+        ['Alquiler mensual',EUR(ingresoMes),'var(--purple)'],
+        ['Gastos recurrentes/año',EUR(gRec),'var(--red)'],
+        ['Rentabilidad bruta',rentBruta,'var(--amber)'],
+        ['Rentabilidad neta',rentNeta,'var(--green)'],
+      ].map(([l,v,c])=>`<div class="srow"><span class="sl">${l}</span><strong style="color:${c}">${v}</strong></div>`).join('')}
+      <div style="margin-top:10px;font-size:10px;color:var(--gray);line-height:1.5;padding:8px;background:var(--bg3);border-radius:6px">
+        <strong style="color:var(--gold2)">Bruta</strong> = Alquiler anual ÷ Inversión total<br>
+        <strong style="color:var(--gold2)">Neta</strong> = (Alquiler anual − Gastos − Intereses hipoteca) ÷ Inversión total<br>
+        <span style="color:var(--gray2)">La amortización de capital NO se resta porque es transformar cash en patrimonio, no un gasto.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sh"><div class="st">👤 Inquilino actual</div>${isAdmin()?`<button class="btn-sm" onclick="openModal('inquilino',${JSON.stringify(inm).replace(/"/g,'&quot;')})">${inm.inquilino_nombre?'✏️ Editar':'+ Añadir'}</button>`:''}</div>
+      ${inm.inquilino_nombre?`
+        <div class="inq-card">
+          <div class="inq-name">${inm.inquilino_nombre}</div>
+          ${isAdmin()?`<div class="inq-data">
+            ${inm.inquilino_dni?`<div>📄 ${inm.inquilino_dni}</div>`:''}
+            ${inm.inquilino_telefono?`<div>📞 <a href="tel:${inm.inquilino_telefono}">${inm.inquilino_telefono}</a></div>`:''}
+            ${inm.inquilino_email?`<div style="grid-column:1/-1">📧 <a href="mailto:${inm.inquilino_email}">${inm.inquilino_email}</a></div>`:''}
+          </div>`:'<div style="font-size:11px;color:var(--gray);font-style:italic">🔒 Datos de contacto restringidos</div>'}
+          <div style="display:grid;grid-template-columns:${isAdmin()?'1fr 1fr 1fr':'1fr 1fr'};gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:11px">
+            <div><div style="color:var(--gray);font-size:9px;letter-spacing:1px;text-transform:uppercase">Inicio</div><strong style="color:var(--gold)">${fmtDate(inm.fecha_inicio_contrato)}</strong></div>
+            <div><div style="color:var(--gray);font-size:9px;letter-spacing:1px;text-transform:uppercase">Fin</div><strong style="color:${alertaContrato?'var(--red)':'var(--gold)'}">${fmtDate(inm.fecha_fin_contrato)}</strong></div>
+            ${isAdmin()?`<div><div style="color:var(--gray);font-size:9px;letter-spacing:1px;text-transform:uppercase">Fianza</div><strong style="color:var(--amber)">${EUR(inm.fianza)}</strong></div>`:''}
+          </div>
+        </div>`:'<div class="empty">Sin inquilino registrado</div>'}
+    </div>
+
+    ${isAdmin()?`<div class="card">
+      <div class="sh"><div class="st">📄 Contratos (PDF)</div><button class="btn-sm" onclick="openModal('contrato',{inmueble_id:${id}})">+ Subir</button></div>
+      ${renderContratos(conInm)}
+    </div>`:''}
+
+    ${isAdmin()?`<div class="card">
+      <div class="sh"><div class="st">Gastos &amp; Facturas</div><button class="btn-sm" onclick="openModal('gasto',{inmueble_id:${id}})">+ Añadir</button></div>
+      ${renderGItems(gasInm)}
+    </div>`:''}
+
+    ${isAdmin()?`<div class="card">
+      <div class="sh"><div class="st">Cobros de alquiler</div><button class="btn-sm" onclick="openModal('cobro',{inmueble_id:${id}})">+ Cobro</button></div>
+      ${renderCItems(cobInm)}
+    </div>`:''}
+
+    <div class="card">
+      <div class="sh"><div class="st">Reformas</div>${isAdmin()?`<button class="btn-sm" onclick="openModal('reforma',{inmueble_id:${id}})">+ Reforma</button>`:''}</div>
+      ${renderRItems(refInm)}
+    </div>
+
+    <div class="card">
+      <div class="sh"><div class="st">🔧 Incidencias &amp; reparaciones</div>${isAdmin()?`<button class="btn-sm" onclick="openModal('incidencia',{inmueble_id:${id}})">+ Incidencia</button>`:''}</div>
+      ${renderIncItems(incInm)}
+    </div>`;
+}
+
+function editInm(d){ openModal('inmueble', d); }
+
+function renderContratos(items){
+  if(!items.length) return '<div class="empty">Sin contratos adjuntos</div>';
+  return items.map(c=>`
+    <div class="gitem">
+      <div class="gtop">
+        <span class="gcat">${c.tipo||'Contrato'}</span>
+        <a class="foto-link" href="${c.url_pdf}" target="_blank">📄 Ver PDF</a>
+      </div>
+      <div class="gdesc" style="color:var(--gold)">${c.nombre||'Contrato'}</div>
+      <div class="gbot">
+        <span class="gfecha">${fmtDate(c.fecha_inicio)}${c.fecha_fin?' → '+fmtDate(c.fecha_fin):''}</span>
+        <button class="btn-d" onclick="delContrato(${c.id})">🗑</button>
+      </div>
+    </div>`).join('');
+}
+
+function renderGItems(items){
+  if(!items.length) return '<div class="empty">Sin gastos registrados</div>';
+  return items.map(g=>`
+    <div class="gitem">
+      <div class="gtop"><span class="gcat">${g.categoria||'—'}</span><span class="gimp">${g.importe?EUR(g.importe):'—'}</span></div>
+      <div class="gdesc">${g.descripcion||''}${g.proveedor?' · '+g.proveedor:''}</div>
+      ${g.url_factura?`<a class="foto-link" href="${g.url_factura}" target="_blank">📎 Ver factura</a>`:''}
+      <div class="gbot"><span class="gfecha">${fmtDate(g.fecha)}${g.factura?' · '+g.factura:''}</span>
+      <div class="gact"><button class="btn-sm" onclick="editGasto(${g.id})">✏️</button><button class="btn-d" onclick="delGasto(${g.id})">🗑</button></div></div>
+    </div>`).join('');
+}
+
+function renderCItems(items){
+  if(!items.length) return '<div class="empty">Sin cobros registrados</div>';
+  return items.map(c=>`
+    <div class="gitem">
+      <div class="gtop"><span class="gcat">${c.concepto||'Alquiler'}</span><span style="font-weight:700;color:var(--green);font-size:15px">${c.importe?EUR(c.importe):'—'}</span></div>
+      <div class="gdesc">${c.inquilino||''}</div>
+      <div class="gbot"><span class="gfecha">${fmtDate(c.fecha)}</span><button class="btn-d" onclick="delCobro(${c.id})">🗑</button></div>
+    </div>`).join('');
+}
+
+function renderRItems(items){
+  if(!items.length) return '<div class="empty">Sin reformas registradas</div>';
+  const sc={Finalizada:'var(--green)','En curso':'var(--amber)',Pendiente:'var(--red)',Presupuestada:'var(--blue)'};
+  return items.map(r=>`
+    <div class="gitem">
+      <div class="gtop"><span class="gcat" style="color:${sc[r.estado]||'var(--gray)'}">${r.estado||'—'}</span><span style="font-weight:700;color:var(--amber)">${r.presupuesto?EUR(r.presupuesto):'—'}</span></div>
+      <div class="gdesc" style="color:var(--gold)">${r.descripcion||'—'}</div>
+      <div class="gdesc">${r.empresa||''}</div>
+      ${r.coste_real?`<div class="gdesc">Coste real: <strong style="color:var(--red)">${EUR(r.coste_real)}</strong></div>`:''}
+      <div class="gbot"><span class="gfecha">${fmtDate(r.fecha_inicio)}${r.fecha_fin?' → '+fmtDate(r.fecha_fin):''}</span>
+      <div class="gact"><button class="btn-sm" onclick="editReforma(${r.id})">✏️</button><button class="btn-d" onclick="delReforma(${r.id})">🗑</button></div></div>
+    </div>`).join('');
+}
+
+function renderIncItems(items){
+  if(!items.length) return '<div class="empty">Sin incidencias registradas</div>';
+  const sc={Pendiente:'var(--red)','En gestión':'var(--amber)',Resuelta:'var(--green)'};
+  return items.map(i=>`
+    <div class="gitem">
+      <div class="gtop"><span class="gcat" style="color:${sc[i.estado]||'var(--gray)'}">${i.estado||'—'}</span>${i.coste?`<span class="gimp">${EUR(i.coste)}</span>`:''}</div>
+      <div class="gdesc" style="color:var(--gold)">${i.tipo||''}</div>
+      <div class="gdesc">${i.descripcion||''}</div>
+      <div class="gbot"><span class="gfecha">${fmtDate(i.fecha)}</span>
+      <div class="gact"><button class="btn-sm" onclick="editIncidencia(${i.id})">✏️</button><button class="btn-d" onclick="delIncidencia(${i.id})">🗑</button></div></div>
+    </div>`).join('');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// GASTOS / REFORMAS GLOBAL
+// ═════════════════════════════════════════════════════════════════════════════
+function renderGasGlobal(){
+  const total=gastos.reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
+  document.getElementById('tot-gas').textContent=EUR(total);
+  const nm=Object.fromEntries(inmuebles.map(i=>[i.id,i.nombre]));
+  document.getElementById('lista-gas-g').innerHTML=gastos.length?gastos.map(g=>`
+    <div class="gitem">
+      <div class="gtop"><span class="gcat">${g.categoria||'—'}</span><span class="gimp">${g.importe?EUR(g.importe):'—'}</span></div>
+      <div class="gdesc" style="color:var(--gold);font-size:11px;font-weight:600">${g.inmueble_id?nm[g.inmueble_id]||'—':'General'}</div>
+      <div class="gdesc">${g.descripcion||''}${g.proveedor?' · '+g.proveedor:''}</div>
+      ${g.url_factura?`<a class="foto-link" href="${g.url_factura}" target="_blank">📎 Ver factura</a>`:''}
+      <div class="gbot"><span class="gfecha">${fmtDate(g.fecha)}</span>
+      <div class="gact"><button class="btn-sm" onclick="editGasto(${g.id})">✏️</button><button class="btn-d" onclick="delGasto(${g.id})">🗑</button></div></div>
+    </div>`).join(''):'<div class="empty">Sin gastos registrados</div>';
+}
+
+function renderRefGlobal(){
+  const total=reformas.reduce((s,r)=>s+(parseFloat(r.presupuesto)||0),0);
+  document.getElementById('tot-ref').textContent=EUR(total);
+  const nm=Object.fromEntries(inmuebles.map(i=>[i.id,i.nombre]));
+  const sc={Finalizada:'var(--green)','En curso':'var(--amber)',Pendiente:'var(--red)',Presupuestada:'var(--blue)'};
+  document.getElementById('lista-ref-g').innerHTML=reformas.length?reformas.map(r=>`
+    <div class="gitem">
+      <div class="gtop"><span class="gcat" style="color:${sc[r.estado]||'var(--gray)'}">${r.estado||'—'}</span><span style="font-weight:700;color:var(--amber)">${r.presupuesto?EUR(r.presupuesto):'—'}</span></div>
+      <div class="gdesc" style="color:var(--gold);font-size:11px;font-weight:600">${r.inmueble_id?nm[r.inmueble_id]||'—':'—'}</div>
+      <div class="gdesc" style="color:var(--gold)">${r.descripcion||'—'}</div>
+      <div class="gdesc">${r.empresa||''}</div>
+      ${r.coste_real?`<div class="gdesc">Coste real: <strong style="color:var(--red)">${EUR(r.coste_real)}</strong></div>`:''}
+      <div class="gbot"><span class="gfecha">${fmtDate(r.fecha_inicio)}</span>
+      <div class="gact"><button class="btn-sm" onclick="editReforma(${r.id})">✏️</button><button class="btn-d" onclick="delReforma(${r.id})">🗑</button></div></div>
+    </div>`).join(''):'<div class="empty">Sin reformas registradas</div>';
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// DASHBOARD + CHARTS
+// ═════════════════════════════════════════════════════════════════════════════
+function renderDashboard() {
+  const act = inmuebles.filter(i=>i.estado!=='Vendido');
+  const alq = inmuebles.filter(i=>i.estado==='Alquilado');
+  const cf = calcularCashflowMensual();
+  const tV = act.reduce((s,i)=>s+(i.valor||0),0);
+  const tD = inmuebles.reduce((s,i)=>s+(i.deuda||0),0);
+
+  document.getElementById('dash-kpis').innerHTML = [
+    ['Patrimonio neto', EUR(tV-tD), 'var(--gold)', `${act.length} activos`],
+    ['Cashflow real/mes', EUR(cf.cashflow), cf.cashflow>=0?'var(--green)':'var(--red)', 'a caja'],
+    ['Cashflow patrim./mes', EUR(cf.cashflowPatrimonial), cf.cashflowPatrimonial>=0?'var(--green)':'var(--red)', `+ ${EUR(cf.amortizacion)} amort.`],
+    ['LTV global', tV>0?((tD/tV)*100).toFixed(0)+'%':'0%', 'var(--blue)', 'apalancamiento'],
+  ].map(([l,v,c,s])=>`<div class="kpi" style="--accent:${c}"><div class="kl">${l}</div><div class="kv" style="color:${c}">${v}</div><div class="ks">${s}</div></div>`).join('');
+
+  setTimeout(()=>renderCharts(), 50);
+}
+
+function renderCharts() {
+  const act = inmuebles.filter(i=>i.estado!=='Vendido');
+
+  // Chart.js defaults
+  Chart.defaults.color = '#9ca3af';
+  Chart.defaults.font.family = 'Inter, sans-serif';
+  Chart.defaults.borderColor = '#252b3d';
+
+  // 1. Distribución por ciudad (donut)
+  const porCiudad = {};
+  act.forEach(i=>{porCiudad[i.ciudad]=(porCiudad[i.ciudad]||0)+(i.valor||0);});
+  const ciudadLabels = Object.keys(porCiudad).sort((a,b)=>porCiudad[b]-porCiudad[a]);
+  const ciudadVals = ciudadLabels.map(c=>porCiudad[c]);
+  const paleta = ['#d4b777','#4ade80','#60a5fa','#a78bfa','#fbbf24','#f87171','#34d399','#fb923c'];
+
+  if(charts.ciudad) charts.ciudad.destroy();
+  charts.ciudad = new Chart(document.getElementById('ch-ciudad'),{
+    type:'doughnut',
+    data:{labels:ciudadLabels,datasets:[{data:ciudadVals,backgroundColor:paleta,borderColor:'#0a0d14',borderWidth:2}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'right',labels:{padding:10,usePointStyle:true,pointStyle:'circle',font:{size:11}}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${EUR(ctx.raw)}`}}
+      },
+      cutout:'65%'
+    }
+  });
+
+  // 2. Distribución por tipo
+  const porTipo = {};
+  act.forEach(i=>{porTipo[i.tipo]=(porTipo[i.tipo]||0)+1;});
+  const tipoLabels = Object.keys(porTipo);
+  const tipoVals = tipoLabels.map(t=>porTipo[t]);
+
+  if(charts.tipo) charts.tipo.destroy();
+  charts.tipo = new Chart(document.getElementById('ch-tipo'),{
+    type:'doughnut',
+    data:{labels:tipoLabels,datasets:[{data:tipoVals,backgroundColor:paleta,borderColor:'#0a0d14',borderWidth:2}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'right',labels:{padding:10,usePointStyle:true,pointStyle:'circle',font:{size:11}}}},
+      cutout:'65%'
+    }
+  });
+
+  // 3. Ingresos vs Gastos últimos 12 meses
+  const hoy = new Date();
+  const meses = [];
+  const ingresosM = [];
+  const gastosM = [];
+  for(let i=11;i>=0;i--){
+    const d = new Date(hoy.getFullYear(), hoy.getMonth()-i, 1);
+    const key = d.toISOString().slice(0,7);
+    meses.push(d.toLocaleDateString('es-ES',{month:'short',year:'2-digit'}));
+    const ing = cobros.filter(c=>c.fecha && c.fecha.slice(0,7)===key).reduce((s,c)=>s+(parseFloat(c.importe)||0),0);
+    const gas = gastos.filter(g=>g.fecha && g.fecha.slice(0,7)===key).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
+    ingresosM.push(ing);
+    gastosM.push(gas);
+  }
+
+  if(charts.flujo) charts.flujo.destroy();
+  charts.flujo = new Chart(document.getElementById('ch-flujo'),{
+    type:'bar',
+    data:{
+      labels:meses,
+      datasets:[
+        {label:'Ingresos',data:ingresosM,backgroundColor:'rgba(74,222,128,.7)',borderColor:'#4ade80',borderWidth:1,borderRadius:4},
+        {label:'Gastos',data:gastosM,backgroundColor:'rgba(248,113,113,.7)',borderColor:'#f87171',borderWidth:1,borderRadius:4}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{labels:{usePointStyle:true,pointStyle:'rect',font:{size:11}}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${EUR(ctx.raw)}`}}
+      },
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:10}}},
+        y:{grid:{color:'#252b3d'},ticks:{callback:v=>EUR(v),font:{size:10}}}
+      }
+    }
+  });
+
+  // 4. Rentabilidad por ciudad — usa solo intereses, no amortización
+  const rentPorCiudad = {};
+  inmuebles.filter(i=>i.alquiler && i.estado==='Alquilado').forEach(i=>{
+    if(!rentPorCiudad[i.ciudad]) rentPorCiudad[i.ciudad]={ing:0,inv:0};
+    const gInv = gastos.filter(g=>g.inmueble_id===i.id && CATS_INV.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
+    const gRec = gastos.filter(g=>g.inmueble_id===i.id && CATS_REC.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
+    const rCost = reformas.filter(r=>r.inmueble_id===i.id).reduce((s,r)=>s+(parseFloat(r.coste_real||r.presupuesto)||0),0);
+    const inv = (i.subasta||i.valor||0)+gInv+rCost;
+    const intAnual = (i.interes_hipoteca != null ? i.interes_hipoteca : (i.cuota_hipoteca||0)) * 12;
+    rentPorCiudad[i.ciudad].ing += i.alquiler*12 - gRec - intAnual;
+    rentPorCiudad[i.ciudad].inv += inv;
+  });
+  const cLabels = Object.keys(rentPorCiudad);
+  const cVals = cLabels.map(c=>rentPorCiudad[c].inv>0?(rentPorCiudad[c].ing/rentPorCiudad[c].inv*100):0);
+
+  if(charts.rentCiudad) charts.rentCiudad.destroy();
+  charts.rentCiudad = new Chart(document.getElementById('ch-rentciudad'),{
+    type:'bar',
+    data:{
+      labels:cLabels,
+      datasets:[{label:'Rentabilidad neta (%)',data:cVals,backgroundColor:cVals.map(v=>v>=5?'rgba(74,222,128,.7)':v>=2?'rgba(251,191,36,.7)':'rgba(248,113,113,.7)'),borderRadius:6}]
+    },
+    options:{
+      indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.raw.toFixed(2)}%`}}},
+      scales:{
+        x:{grid:{color:'#252b3d'},ticks:{callback:v=>v+'%',font:{size:10}}},
+        y:{grid:{display:false},ticks:{font:{size:11}}}
+      }
+    }
+  });
+
+  // 5. Rankings de rentabilidad — cálculo compartido
+  const rankingBase = inmuebles.filter(i=>i.alquiler && i.estado==='Alquilado').map(i=>{
+    const gInv = gastos.filter(g=>g.inmueble_id===i.id && CATS_INV.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
+    const gRec = gastos.filter(g=>g.inmueble_id===i.id && CATS_REC.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
+    const rCost = reformas.filter(r=>r.inmueble_id===i.id).reduce((s,r)=>s+(parseFloat(r.coste_real||r.presupuesto)||0),0);
+    const inv = (i.subasta||i.valor||0)+gInv+rCost;
+    // Solo intereses restan a rentabilidad. Si no hay interés informado, se asume que toda la cuota es interés (peor caso)
+    const intAnual = (i.interes_hipoteca != null ? i.interes_hipoteca : (i.cuota_hipoteca||0)) * 12;
+    const rentN = inv>0 ? ((i.alquiler*12 - gRec - intAnual) / inv * 100) : 0;
+    const rentB = inv>0 ? (i.alquiler*12 / inv * 100) : 0;
+    return {...i, rentN, rentB, inv};
+  }).filter(x=>x.inv>0);
+
+  const rankHTML = (items, mainKey, subKey, mainLabel, subLabel) => items.length?items.map((i,idx)=>`
+    <div class="rank-item">
+      <div class="rank-pos ${idx<3?'top':''}">${idx+1}</div>
+      <div class="rank-info">
+        <div class="rank-name">${i.nombre}</div>
+        <div class="rank-city">${i.ciudad}${i.cuota_hipoteca?' · con hipoteca':' · sin hipoteca'}</div>
+      </div>
+      <div class="rank-vals">
+        <div class="rank-main">${i[mainKey].toFixed(1)}% ${mainLabel}</div>
+        <div class="rank-sub">${i[subKey].toFixed(1)}% ${subLabel}</div>
+      </div>
+    </div>`).join('') : '<div class="empty">Sin datos suficientes para ranking</div>';
+
+  const rankingNeta = [...rankingBase].sort((a,b)=>b.rentN-a.rentN).slice(0,10);
+  const rankingBruta = [...rankingBase].sort((a,b)=>b.rentB-a.rentB).slice(0,10);
+
+  document.getElementById('ranking').innerHTML = rankHTML(rankingNeta, 'rentN', 'rentB', 'neta', 'bruta');
+  document.getElementById('ranking-bruto').innerHTML = rankHTML(rankingBruta, 'rentB', 'rentN', 'bruta', 'neta');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ALERTAS
+// ═════════════════════════════════════════════════════════════════════════════
+function renderAlertas() {
+  const alertas = [];
+  inmuebles.forEach(i=>{
+    const d = daysUntil(i.fecha_fin_contrato);
+    if(d!=null && d>0 && d<=90){
+      alertas.push({inm:i, dias:d, tipo:'contrato'});
+    }
+  });
+  alertas.sort((a,b)=>a.dias-b.dias);
+
+  const el = document.getElementById('lista-alertas');
+  if(!alertas.length){
+    el.innerHTML = '<div class="card"><div class="empty">🎉 No hay alertas activas. Todo en orden.</div></div>';
+    return;
+  }
+
+  const grupos = {urgente:[],proximo:[],aviso:[]};
+  alertas.forEach(a=>{
+    if(a.dias<=30) grupos.urgente.push(a);
+    else if(a.dias<=60) grupos.proximo.push(a);
+    else grupos.aviso.push(a);
+  });
+
+  let html = '';
+  const secc = [
+    ['🔴 Urgente · ≤ 30 días', grupos.urgente, 'var(--red)'],
+    ['🟡 Próximo · 31-60 días', grupos.proximo, 'var(--amber)'],
+    ['🔵 Aviso · 61-90 días', grupos.aviso, 'var(--blue)'],
+  ];
+  secc.forEach(([tit,items,col])=>{
+    if(!items.length) return;
+    html += `<div class="card"><div class="ct" style="color:${col}">${tit} (${items.length})</div>`;
+    items.forEach(a=>{
+      html += `<div class="inm-card" style="--estado-color:${col};margin-bottom:8px" onclick="goDetalle(${a.inm.id})">
+        <div class="inm-header">
+          <div><div class="inm-n">${a.inm.nombre}</div><div class="inm-d">${a.inm.ciudad} · ${a.inm.inquilino_nombre||'—'}</div></div>
+          <span class="badge b-alert">${a.dias}d</span>
+        </div>
+        <div style="margin-top:8px;font-size:11.5px;color:var(--gray2)">Vence el <strong style="color:${col}">${fmtDate(a.inm.fecha_fin_contrato)}</strong> · Renta ${EUR(a.inm.alquiler)}/mes</div>
+      </div>`;
+    });
+    html += '</div>';
+  });
+  el.innerHTML = html;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// FISCAL
+// ═════════════════════════════════════════════════════════════════════════════
+function initFiscalYears() {
+  const years = new Set();
+  const cur = new Date().getFullYear();
+  years.add(cur);
+  years.add(cur-1);
+  [...gastos,...cobros].forEach(x=>{if(x.fecha) years.add(parseInt(x.fecha.slice(0,4)));});
+  const sel = document.getElementById('fiscal-year');
+  sel.innerHTML = [...years].sort((a,b)=>b-a).map(y=>`<option value="${y}">${y}</option>`).join('');
+  sel.onchange = renderFiscal;
+  renderFiscal();
+}
+
+function calcFiscal(year) {
+  const y = parseInt(year);
+  const data = inmuebles.filter(i=>i.estado!=='Vendido' || (i.estado==='Vendido')).map(i=>{
+    const cobs = cobros.filter(c=>c.inmueble_id===i.id && c.fecha && c.fecha.slice(0,4)==year);
+    const gass = gastos.filter(g=>g.inmueble_id===i.id && g.fecha && g.fecha.slice(0,4)==year);
+    const ing = cobs.reduce((s,c)=>s+(parseFloat(c.importe)||0),0);
+    const gas = gass.reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
+    return {inm:i, ingresos:ing, gastos:gas, neto:ing-gas, cobs:cobs.length, gass:gass.length};
+  }).filter(x=>x.ingresos>0 || x.gastos>0);
+  return data;
+}
+
+function renderFiscal() {
+  const year = document.getElementById('fiscal-year').value;
+  const data = calcFiscal(year);
+  const tIng = data.reduce((s,x)=>s+x.ingresos,0);
+  const tGas = data.reduce((s,x)=>s+x.gastos,0);
+
+  let html = `<div class="kgrid">
+    <div class="kpi"><div class="kl">Ingresos ${year}</div><div class="kv" style="color:var(--green)">${EUR(tIng)}</div></div>
+    <div class="kpi"><div class="kl">Gastos ${year}</div><div class="kv" style="color:var(--red)">${EUR(tGas)}</div></div>
+    <div class="kpi"><div class="kl">Rendimiento</div><div class="kv" style="color:${tIng-tGas>=0?'var(--green)':'var(--red)'}">${EUR(tIng-tGas)}</div></div>
+    <div class="kpi"><div class="kl">Inmuebles</div><div class="kv" style="color:var(--gold)">${data.length}</div></div>
+  </div>`;
+
+  if(!data.length){
+    html += '<div class="card"><div class="empty">Sin movimientos registrados en ' + year + '</div></div>';
+  } else {
+    html += '<div class="card"><div class="ct">Detalle por inmueble</div>';
+    data.sort((a,b)=>b.neto-a.neto).forEach(x=>{
+      html += `<div class="gitem" onclick="goDetalle(${x.inm.id})" style="cursor:pointer">
+        <div class="gtop"><span class="gcat">${x.inm.ciudad}</span><span style="font-weight:700;color:${x.neto>=0?'var(--green)':'var(--red)'};font-size:15px">${EUR(x.neto)}</span></div>
+        <div class="gdesc" style="color:var(--gold);font-weight:600">${x.inm.nombre}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:11px">
+          <div>Ingresos: <strong style="color:var(--green)">${EUR(x.ingresos)}</strong> <span style="color:var(--gray)">(${x.cobs})</span></div>
+          <div>Gastos: <strong style="color:var(--red)">${EUR(x.gastos)}</strong> <span style="color:var(--gray)">(${x.gass})</span></div>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  document.getElementById('fiscal-content').innerHTML = html;
+}
+
+function exportFiscal() {
+  const year = document.getElementById('fiscal-year').value;
+  const data = calcFiscal(year);
+  let csv = 'Inmueble;Ciudad;Tipo;Ingresos;Gastos;Rendimiento neto;Nº cobros;Nº gastos\n';
+  data.forEach(x=>{
+    csv += `"${x.inm.nombre}";"${x.inm.ciudad}";"${x.inm.tipo}";${x.ingresos};${x.gastos};${x.neto};${x.cobs};${x.gass}\n`;
+  });
+  const tIng = data.reduce((s,x)=>s+x.ingresos,0);
+  const tGas = data.reduce((s,x)=>s+x.gastos,0);
+  csv += `"TOTAL";"";"";${tIng};${tGas};${tIng-tGas};;\n`;
+
+  const blob = new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `resumen_fiscal_${year}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('✅ CSV descargado');
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// TABS
+// ═════════════════════════════════════════════════════════════════════════════
+function showTab(t){
+  const adminOnlyTabs = ['gastos','reformas','fiscal','ajustes'];
+  if(!isAdmin() && adminOnlyTabs.includes(t)){
+    toast('🔒 Pestaña restringida al administrador', false);
+    return;
+  }
+  document.querySelectorAll('.tab').forEach(e=>e.classList.remove('active'));
+  document.getElementById('tab-'+t).classList.add('active');
+  const order = ['cartera','dashboard','detalle','gastos','reformas','alertas','fiscal','ajustes'];
+  document.querySelectorAll('.nb').forEach((b,i)=>b.classList.toggle('active',order[i]===t));
+  if(t==='detalle') renderDetalle();
+  if(t==='dashboard') setTimeout(renderCharts, 100);
+  if(t==='fiscal') renderFiscal();
+  if(t==='ajustes') updateSessionInfo();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// MODAL
+// ═════════════════════════════════════════════════════════════════════════════
+function openModal(type,data){
+  if(!isAdmin()){ toast('🔒 Solo el administrador puede realizar esta acción', false); return; }
+  document.getElementById('mov').classList.remove('hidden');
+  const fns = {inmueble:mInm, gasto:mGasto, reforma:mReforma, cobro:mCobro, financiero:mFinanciero,
+               inquilino:mInquilino, contrato:mContrato, incidencia:mIncidencia};
+  if(fns[type]) fns[type](data);
+}
+function closeModal(){ document.getElementById('mov').classList.add('hidden'); }
+
+const fi=(id,v,type='text',ph='')=>`<input id="${id}" type="${type}" value="${v!=null?v:''}" placeholder="${ph}">`;
+const fs=(id,v,opts)=>`<select id="${id}">${opts.map(o=>`<option value="${o}"${o==v?' selected':''}>${o||'—'}</option>`).join('')}</select>`;
+const ff=(l,inp)=>`<div class="field"><label>${l}</label>${inp}</div>`;
+
+function mInm(d){
+  document.getElementById('mc').innerHTML=`
+    <div class="modal-title">${d.id?'Editar inmueble':'Nuevo inmueble'}</div>
+    <div class="g2">
+      ${ff('Nombre',fi('fn',d.nombre))}
+      ${ff('Tipo',fs('ft',d.tipo||'Vivienda',['Vivienda','Vivienda Habitual','Apartamento Turístico','Local Comercial','Garaje','Trastero','Otro']))}
+    </div>
+    ${ff('Dirección',fi('fdir',d.direccion))}
+    <div class="g2">
+      ${ff('Ciudad',fi('fciu',d.ciudad))}
+      ${ff('Superficie',fi('fsup',d.superficie,'text','ej: 80 m²'))}
+      ${ff('Cargas',fs('fcar',d.cargas||'LIBRE',['LIBRE','HIPOTECA','HIPOTECA *']))}
+      ${ff('Estado',fs('fest',d.estado||'Libre',['Libre','Alquilado','En Reforma','En Venta','Vendido','Ocupada']))}
+      ${ff('Modalidad alquiler',fs('fta',d.tipo_alquiler||'',['','larga','vacacional','habitaciones']))}
+      ${ff('Precio subasta (€)',fi('fsub',d.subasta,'number'))}
+      ${ff('Valor actual (€)',fi('fval',d.valor,'number'))}
+      ${ff('Deuda (€)',fi('fdeu',d.deuda,'number'))}
+      ${ff('Alquiler/mes (€)',fi('falq',d.alquiler,'number'))}
+      ${ff('Cuota hipoteca/mes (€)',fi('fcuota',d.cuota_hipoteca,'number'))}
+      ${ff('Interés/mes (€)',fi('finteres',d.interes_hipoteca,'number','Parte de la cuota'))}
+    </div>
+    <div style="padding:8px 10px;background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.2);border-radius:8px;margin-bottom:12px;font-size:10.5px;color:var(--gray2);line-height:1.5">
+      💡 <strong style="color:var(--blue)">Interés vs Amortización:</strong> del recibo de la hipoteca, indica solo la parte de <strong>interés</strong>. La amortización de capital no es un gasto real (transforma cash en patrimonio). Si dejas el interés vacío, se asumirá que toda la cuota es interés (más conservador). Para cuentas de crédito donde solo se pagan intereses, pon el mismo importe en cuota e interés.
+    </div>
+    <div style="padding:10px;background:var(--bg3);border-radius:8px;margin-bottom:12px">
+      <div style="font-size:10px;color:var(--gold2);letter-spacing:2px;text-transform:uppercase;font-weight:700;margin-bottom:8px">Alquiler por habitaciones</div>
+      <div class="g3">
+        ${ff('Nº habs',fi('fnhab',d.num_habitaciones,'number'))}
+        ${ff('Ocupadas',fi('fhabocu',d.habitaciones_ocupadas,'number'))}
+        ${ff('€/habitación',fi('fprecio_h',d.precio_habitacion,'number'))}
+      </div>
+    </div>
+    <div style="padding:10px;background:var(--bg3);border-radius:8px;margin-bottom:12px">
+      <div style="font-size:10px;color:var(--gold2);letter-spacing:2px;text-transform:uppercase;font-weight:700;margin-bottom:8px">Alquiler vacacional</div>
+      <div class="g2">
+        ${ff('€/noche',fi('fpnoche',d.precio_noche,'number'))}
+        ${ff('Ocupación media %',fi('focup',d.ocupacion_media,'number'))}
+      </div>
+    </div>
+    ${ff('Notas',`<textarea id="fnot">${d.notas||''}</textarea>`)}
+    <div class="btn-row">
+      <button class="btn-s" onclick="closeModal()">Cancelar</button>
+      <button class="btn-p" onclick="saveInm(${d.id||0})">💾 Guardar</button>
+    </div>`;
+}
+
+function mGasto(d){
+  const opts=inmuebles.map(i=>`<option value="${i.id}"${i.id==d.inmueble_id?' selected':''}>${i.nombre}</option>`).join('');
+  document.getElementById('mc').innerHTML=`
+    <div class="modal-title">${d.id?'Editar gasto':'Nuevo gasto / factura'}</div>
+    <button class="btn-ai" id="btn-ai-extract" style="display:none" onclick="extractFromFoto()">✨ Leer factura con IA</button>
+    <div id="ai-status"></div>
+    ${ff('Inmueble',`<select id="finm"><option value="">— General —</option>${opts}</select>`)}
+    <div class="g2">
+      ${ff('Categoría',fs('fcat',d.categoria||'',['','Notaría','Gestoría','ITP/AJD','Registro','Reforma','IBI','Comunidad','Seguro','Electricidad','Agua','Gas','Suministros','Mantenimiento','Hipoteca','Otros']))}
+      ${ff('Importe (€)',fi('fimp',d.importe,'number'))}
+      ${ff('Fecha',fi('ffec',d.fecha,'date'))}
+      ${ff('Proveedor',fi('fpro',d.proveedor,'text','Empresa'))}
+    </div>
+    ${ff('Descripción',fi('fdes',d.descripcion,'text','Concepto'))}
+    ${ff('Nº Factura',fi('ffact',d.factura,'text','Opcional'))}
+    <div class="field">
+      <label>📷 Foto de factura (la IA extrae los datos)</label>
+      <div class="foto-area" id="foto-area-g">
+        <input type="file" accept="image/*,application/pdf" capture="environment" onchange="previewFoto(this,'foto-area-g','foto-prev-g','fotodata-g')">
+        📷 Pulsa para hacer foto o seleccionar archivo
+      </div>
+      ${d.url_factura?`<a class="foto-link" href="${d.url_factura}" target="_blank">📎 Factura adjunta actual</a>`:''}
+      <img id="foto-prev-g" class="foto-preview" style="display:none">
+      <input type="hidden" id="fotodata-g">
+    </div>
+    <div class="btn-row">
+      <button class="btn-s" onclick="closeModal()">Cancelar</button>
+      <button class="btn-p" onclick="saveGasto(${d.id||0},'${d.url_factura||''}')">💾 Guardar</button>
+    </div>`;
+}
+
+function mReforma(d){
+  const opts=inmuebles.map(i=>`<option value="${i.id}"${i.id==d.inmueble_id?' selected':''}>${i.nombre}</option>`).join('');
+  document.getElementById('mc').innerHTML=`
+    <div class="modal-title">${d.id?'Editar reforma':'Nueva reforma'}</div>
+    ${ff('Inmueble',`<select id="finm"><option value="">— Seleccionar —</option>${opts}</select>`)}
+    ${ff('Descripción',fi('fdes',d.descripcion,'text','Qué se va a reformar'))}
+    <div class="g2">
+      ${ff('Presupuesto (€)',fi('fpres',d.presupuesto,'number'))}
+      ${ff('Coste real (€)',fi('fcost',d.coste_real,'number'))}
+      ${ff('Fecha inicio',fi('ffi',d.fecha_inicio,'date'))}
+      ${ff('Fecha fin',fi('fff',d.fecha_fin,'date'))}
+      ${ff('Empresa',fi('femp',d.empresa))}
+      ${ff('Estado',fs('fest',d.estado||'Pendiente',['Pendiente','Presupuestada','En curso','Finalizada']))}
+    </div>
+    ${ff('Notas',`<textarea id="fnot">${d.notas||''}</textarea>`)}
+    <div class="btn-row">
+      <button class="btn-s" onclick="closeModal()">Cancelar</button>
+      <button class="btn-p" onclick="saveReforma(${d.id||0})">💾 Guardar</button>
+    </div>`;
+}
+
+function mFinanciero(d){
+  document.getElementById('mc').innerHTML=`
+    <div class="modal-title">💰 Editar datos financieros</div>
+    <div style="font-size:11px;color:var(--gray2);margin-bottom:14px">${d.nombre}</div>
+    ${ff('Precio subasta (€)',fi('fsub',d.subasta,'number','Precio pagado'))}
+    ${ff('Valor actual mercado (€)',fi('fval',d.valor,'number','Tasación actual'))}
+    ${ff('Deuda hipotecaria (€)',fi('fdeu',d.deuda,'number','Saldo pendiente'))}
+    ${ff('Cuota hipoteca/mes (€)',fi('fcuota',d.cuota_hipoteca,'number','Cuota mensual total'))}
+    ${ff('Interés/mes (€)',fi('finteres',d.interes_hipoteca,'number','Solo la parte de intereses'))}
+    <div style="padding:8px 10px;background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.2);border-radius:8px;margin-bottom:12px;font-size:10.5px;color:var(--gray2);line-height:1.5">
+      💡 Solo el <strong style="color:var(--blue)">interés</strong> resta en rentabilidad. La amortización de capital transforma cash en patrimonio (no es gasto). Cuenta de crédito → cuota = interés.
+    </div>
+    ${ff('Alquiler mensual (€)',fi('falq',d.alquiler,'number','Renta actual'))}
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px">
+      <div style="font-size:9px;color:var(--gold2);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;font-weight:700">Vista previa</div>
+      <div id="rent-preview" style="font-size:13px;color:var(--amber)">Introduce los valores para calcular</div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-s" onclick="closeModal()">Cancelar</button>
+      <button class="btn-p" onclick="saveFinanciero(${d.id})">💾 Guardar</button>
+    </div>`;
+  ['fsub','fval','fdeu','falq','fcuota','finteres'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('input', updateRentPreview);
+  });
+  updateRentPreview();
+}
+
+function updateRentPreview(){
+  const sub=parseFloat(document.getElementById('fsub')?.value)||0;
+  const val=parseFloat(document.getElementById('fval')?.value)||0;
+  const deu=parseFloat(document.getElementById('fdeu')?.value)||0;
+  const alq=parseFloat(document.getElementById('falq')?.value)||0;
+  const cuota=parseFloat(document.getElementById('fcuota')?.value)||0;
+  const interesRaw = document.getElementById('finteres')?.value;
+  const interes = interesRaw!=='' && interesRaw!=null ? parseFloat(interesRaw)||0 : cuota;
+  const amort = Math.max(0, cuota - interes);
+  const base=sub||val;
+  const el=document.getElementById('rent-preview');
+  if(!el) return;
+  if(alq&&base){
+    const rentB=(alq*12/base*100).toFixed(1);
+    const rentN=((alq*12-interes*12)/base*100).toFixed(1);
+    const neto=val-deu;
+    const cfReal=alq-cuota;
+    const cfPat=alq-interes;
+    el.innerHTML=`
+      Rent. bruta: <strong style="color:var(--amber);font-size:16px">${rentB}%</strong> · Neta: <strong style="color:var(--green);font-size:16px">${rentN}%</strong><br>
+      <span style="color:var(--blue);font-size:12px">Patrimonio neto: ${EUR(neto)}</span><br>
+      <span style="color:${cfReal>=0?'var(--green)':'var(--red)'};font-size:12px">Cashflow real: ${EUR(cfReal)}/mes</span>
+      ${cuota>0?`<br><span style="color:${cfPat>=0?'var(--green)':'var(--red)'};font-size:12px">Cashflow patrimonial: ${EUR(cfPat)}/mes</span><br><span style="color:var(--gray);font-size:11px">↳ Amort: ${EUR(amort)} · Interés: ${EUR(interes)}</span>`:''}
+    `;
+  } else {
+    el.textContent='Introduce los valores para calcular';
+  }
+}
+
+function mInquilino(d){
+  document.getElementById('mc').innerHTML=`
+    <div class="modal-title">👤 Datos del inquilino</div>
+    <div style="font-size:11px;color:var(--gray2);margin-bottom:14px">${d.nombre}</div>
+    ${ff('Nombre completo',fi('finqn',d.inquilino_nombre))}
+    <div class="g2">
+      ${ff('DNI / NIE',fi('finqdni',d.inquilino_dni))}
+      ${ff('Teléfono',fi('finqtel',d.inquilino_telefono,'tel'))}
+    </div>
+    ${ff('Email',fi('finqemail',d.inquilino_email,'email'))}
+    <div class="g2">
+      ${ff('Inicio contrato',fi('ffechai',d.fecha_inicio_contrato,'date'))}
+      ${ff('Fin contrato',fi('ffechaf',d.fecha_fin_contrato,'date'))}
+    </div>
+    ${ff('Fianza (€)',fi('ffianza',d.fianza,'number'))}
+    <div class="btn-row">
+      <button class="btn-s" onclick="closeModal()">Cancelar</button>
+      <button class="btn-p" onclick="saveInquilino(${d.id})">💾 Guardar</button>
+    </div>`;
+}
+
+function mContrato(d){
+  document.getElementById('mc').innerHTML=`
+    <div class="modal-title">📄 Nuevo contrato PDF</div>
+    ${ff('Nombre contrato',fi('fcn',d.nombre,'text','Ej: Contrato arrendamiento 2025'))}
+    ${ff('Tipo',fs('fct',d.tipo||'Arrendamiento',['Arrendamiento','Compraventa','Suministros','Seguro','Otro']))}
+    <div class="g2">
+      ${ff('Fecha inicio',fi('fci',d.fecha_inicio,'date'))}
+      ${ff('Fecha fin',fi('fcf',d.fecha_fin,'date'))}
+    </div>
+    <div class="field">
+      <label>📎 Archivo PDF</label>
+      <div class="foto-area" id="foto-area-c">
+        <input type="file" accept="application/pdf" onchange="previewFoto(this,'foto-area-c','foto-prev-c','fotodata-c')">
+        📄 Pulsa para seleccionar PDF
+      </div>
+      <div id="pdf-nombre" style="margin-top:8px;font-size:12px;color:var(--gold)"></div>
+      <img id="foto-prev-c" style="display:none">
+      <input type="hidden" id="fotodata-c">
+    </div>
+    <div class="btn-row">
+      <button class="btn-s" onclick="closeModal()">Cancelar</button>
+      <button class="btn-p" onclick="saveContrato(${d.inmueble_id})">💾 Subir contrato</button>
+    </div>`;
+}
+
+function mIncidencia(d){
+  const opts=inmuebles.map(i=>`<option value="${i.id}"${i.id==d.inmueble_id?' selected':''}>${i.nombre}</option>`).join('');
+  document.getElementById('mc').innerHTML=`
+    <div class="modal-title">${d.id?'Editar incidencia':'Nueva incidencia'}</div>
+    ${ff('Inmueble',`<select id="finm"><option value="">— Seleccionar —</option>${opts}</select>`)}
+    <div class="g2">
+      ${ff('Tipo',fs('ftipo',d.tipo||'Reparación',['Reparación','Avería','Queja inquilino','Mantenimiento','Otros']))}
+      ${ff('Estado',fs('fest',d.estado||'Pendiente',['Pendiente','En gestión','Resuelta']))}
+      ${ff('Fecha',fi('ffec',d.fecha||new Date().toISOString().slice(0,10),'date'))}
+      ${ff('Coste (€)',fi('fcost',d.coste,'number'))}
+    </div>
+    ${ff('Descripción',`<textarea id="fdes">${d.descripcion||''}</textarea>`)}
+    <div class="btn-row">
+      <button class="btn-s" onclick="closeModal()">Cancelar</button>
+      <button class="btn-p" onclick="saveIncidencia(${d.id||0})">💾 Guardar</button>
+    </div>`;
+}
+
+function mCobro(d){
+  const opts=inmuebles.map(i=>`<option value="${i.id}"${i.id==d.inmueble_id?' selected':''}>${i.nombre}</option>`).join('');
+  document.getElementById('mc').innerHTML=`
+    <div class="modal-title">Registrar cobro</div>
+    ${ff('Inmueble',`<select id="finm"><option value="">— Seleccionar —</option>${opts}</select>`)}
+    <div class="g2">
+      ${ff('Importe (€)',fi('fimp',d.importe,'number'))}
+      ${ff('Fecha',fi('ffec',d.fecha||new Date().toISOString().slice(0,10),'date'))}
+      ${ff('Concepto',fi('fcon',d.concepto,'text','Alquiler mes, fianza...'))}
+      ${ff('Inquilino',fi('finq',d.inquilino))}
+    </div>
+    <div class="btn-row">
+      <button class="btn-s" onclick="closeModal()">Cancelar</button>
+      <button class="btn-p" onclick="saveCobro(${d.id||0})">💾 Guardar</button>
+    </div>`;
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// FOTO PREVIEW + AI
+// ═════════════════════════════════════════════════════════════════════════════
+function previewFoto(input, areaId, prevId, dataId){
+  const file=input.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const prev=document.getElementById(prevId);
+    if(file.type.startsWith('image/')){
+      prev.src=e.target.result;
+      prev.style.display='block';
+      // Mostrar botón de extracción IA solo para imágenes
+      const btnAI = document.getElementById('btn-ai-extract');
+      if(btnAI) btnAI.style.display='flex';
+    } else if(file.type==='application/pdf'){
+      const pdfNombre = document.getElementById('pdf-nombre');
+      if(pdfNombre) pdfNombre.textContent = '📄 ' + file.name;
+    }
+    document.getElementById(dataId).value=e.target.result;
+    document.getElementById(areaId).style.borderColor='var(--green)';
+  };
+  reader.readAsDataURL(file);
+}
+
+async function extractFromFoto(){
+  const fotoData = document.getElementById('fotodata-g').value;
+  if(!fotoData || !fotoData.startsWith('data:image')){
+    toast('Sube primero una imagen',false);
+    return;
+  }
+  const btn = document.getElementById('btn-ai-extract');
+  const status = document.getElementById('ai-status');
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Analizando factura...';
+  status.innerHTML = '<div class="ai-banner processing">🔍 <span>La IA está leyendo la factura...</span></div>';
+
+  try {
+    const base64 = fotoData.split(',')[1];
+    const mediaType = fotoData.split(';')[0].split(':')[1];
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','anthropic-dangerous-direct-browser-access':'true'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 500,
+        messages: [{
+          role:'user',
+          content:[
+            {type:'image', source:{type:'base64', media_type:mediaType, data:base64}},
+            {type:'text', text:`Extrae los datos de esta factura y devuelve SOLO un JSON (sin texto adicional, sin markdown) con:
+{
+  "importe": número (total con IVA, sin símbolo),
+  "fecha": "YYYY-MM-DD",
+  "proveedor": "nombre empresa",
+  "categoria": una de [IBI, Comunidad, Seguro, Electricidad, Agua, Gas, Suministros, Mantenimiento, Reforma, Notaría, Gestoría, Otros],
+  "descripcion": "concepto breve",
+  "factura": "nº factura si lo hay o vacío"
+}
+Si no puedes leer algún campo, pon null. Responde SOLO el JSON.`}
+          ]
+        }]
+      })
+    });
+
+    const data = await response.json();
+    if(!response.ok){
+      throw new Error(data.error?.message || 'Error al llamar a la IA');
+    }
+
+    const text = data.content.map(c=>c.text||'').join('').trim();
+    const clean = text.replace(/```json|```/g,'').trim();
+    const parsed = JSON.parse(clean);
+
+    // Rellenar campos
+    if(parsed.importe) document.getElementById('fimp').value = parsed.importe;
+    if(parsed.fecha) document.getElementById('ffec').value = parsed.fecha;
+    if(parsed.proveedor) document.getElementById('fpro').value = parsed.proveedor;
+    if(parsed.categoria) document.getElementById('fcat').value = parsed.categoria;
+    if(parsed.descripcion) document.getElementById('fdes').value = parsed.descripcion;
+    if(parsed.factura) document.getElementById('ffact').value = parsed.factura;
+
+    status.innerHTML = '<div class="ai-banner" style="background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.3);color:#4ade80">✅ <span>Datos extraídos correctamente. Revisa y guarda.</span></div>';
+    toast('✨ Datos extraídos por IA');
+  } catch(e){
+    console.error(e);
+    status.innerHTML = `<div class="ai-banner" style="background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.3);color:#f87171">❌ <span>Error al leer la factura: ${e.message}</span></div>`;
+    toast('Error IA: ' + e.message, false);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '✨ Leer factura con IA';
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SAVE / DELETE FUNCTIONS
+// ═════════════════════════════════════════════════════════════════════════════
+async function saveInm(id){
+  if(!isAdmin()) return toast('🔒 Solo administrador', false);
+  const row={
+    nombre:document.getElementById('fn').value,
+    tipo:document.getElementById('ft').value,
+    direccion:document.getElementById('fdir').value,
+    ciudad:document.getElementById('fciu').value,
+    superficie:document.getElementById('fsup').value,
+    cargas:document.getElementById('fcar').value,
+    estado:document.getElementById('fest').value,
+    tipo_alquiler:document.getElementById('fta').value||null,
+    subasta:parseFloat(document.getElementById('fsub').value)||null,
+    valor:parseFloat(document.getElementById('fval').value)||null,
+    deuda:parseFloat(document.getElementById('fdeu').value)||0,
+    alquiler:parseFloat(document.getElementById('falq').value)||0,
+    cuota_hipoteca:parseFloat(document.getElementById('fcuota').value)||null,
+    interes_hipoteca:parseFloat(document.getElementById('finteres').value)||null,
+    num_habitaciones:parseInt(document.getElementById('fnhab').value)||null,
+    habitaciones_ocupadas:parseInt(document.getElementById('fhabocu').value)||null,
+    precio_habitacion:parseFloat(document.getElementById('fprecio_h').value)||null,
+    precio_noche:parseFloat(document.getElementById('fpnoche').value)||null,
+    ocupacion_media:parseFloat(document.getElementById('focup').value)||null,
+    notas:document.getElementById('fnot').value||null,
+  };
+  let err;
+  if(id){ ({error:err}=await db.from('inmuebles').update(row).eq('id',id)); }
+  else { ({error:err}=await db.from('inmuebles').insert(row)); }
+  if(err){ toast('Error: '+err.message,false); return; }
+  toast('✅ Inmueble guardado');
+  closeModal();
+  await loadInm();
+  renderAll();
+}
+
+async function saveFinanciero(id){
+  if(!isAdmin()) return toast('🔒 Solo administrador', false);
+  const row={
+    subasta: parseFloat(document.getElementById('fsub').value)||null,
+    valor: parseFloat(document.getElementById('fval').value)||null,
+    deuda: parseFloat(document.getElementById('fdeu').value)||0,
+    alquiler: parseFloat(document.getElementById('falq').value)||0,
+    cuota_hipoteca: parseFloat(document.getElementById('fcuota').value)||null,
+    interes_hipoteca: parseFloat(document.getElementById('finteres').value)||null,
+  };
+  const {error}=await db.from('inmuebles').update(row).eq('id',id);
+  if(error){ toast('Error: '+error.message,false); return; }
+  toast('✅ Datos financieros actualizados');
+  closeModal();
+  await loadInm();
+  renderAll();
+  document.getElementById('det-sel').value=id;
+  renderDetalle();
+}
+
+async function saveInquilino(id){
+  if(!isAdmin()) return toast('🔒 Solo administrador', false);
+  const row={
+    inquilino_nombre: document.getElementById('finqn').value||null,
+    inquilino_dni: document.getElementById('finqdni').value||null,
+    inquilino_telefono: document.getElementById('finqtel').value||null,
+    inquilino_email: document.getElementById('finqemail').value||null,
+    fecha_inicio_contrato: document.getElementById('ffechai').value||null,
+    fecha_fin_contrato: document.getElementById('ffechaf').value||null,
+    fianza: parseFloat(document.getElementById('ffianza').value)||null,
+  };
+  const {error}=await db.from('inmuebles').update(row).eq('id',id);
+  if(error){ toast('Error: '+error.message,false); return; }
+  toast('✅ Inquilino guardado');
+  closeModal();
+  await loadInm();
+  renderAll();
+  document.getElementById('det-sel').value=id;
+  renderDetalle();
+}
+
+async function saveGasto(id, oldUrl){
+  if(!isAdmin()) return toast('🔒 Solo administrador', false);
+  let url_factura = oldUrl || null;
+  const fotoData = document.getElementById('fotodata-g')?.value;
+  const inmSel = document.getElementById('finm')?.value;
+
+  if(fotoData && fotoData.startsWith('data:')){
+    try {
+      const res = await fetch(fotoData);
+      const blob = await res.blob();
+      const ext = blob.type.includes('pdf')?'pdf':'jpg';
+      const fname = `${Date.now()}.${ext}`;
+      const {data:upData, error:upErr} = await db.storage.from('facturas').upload(fname, blob, {contentType: blob.type, upsert:false});
+      if(upErr){
+        if(upErr.message && upErr.message.toLowerCase().includes('bucket')){
+          showBucketError('facturas');
+          return;
+        }
+        toast('⚠️ Error subiendo factura: '+upErr.message, false);
+      } else if(upData){
+        const {data:urlData} = db.storage.from('facturas').getPublicUrl(fname);
+        url_factura = urlData?.publicUrl || null;
+      }
+    } catch(e) {
+      console.warn('Upload error',e);
+      toast('⚠️ Error subiendo: '+e.message, false);
+    }
+  }
+
+  const row={
+    inmueble_id: inmSel ? parseInt(inmSel) : null,
+    categoria: document.getElementById('fcat').value||null,
+    importe: parseFloat(document.getElementById('fimp').value)||null,
+    fecha: document.getElementById('ffec').value||null,
+    proveedor: document.getElementById('fpro').value||null,
+    descripcion: document.getElementById('fdes').value||null,
+    factura: document.getElementById('ffact').value||null,
+    url_factura,
+  };
+  let err;
+  if(id){ ({error:err}=await db.from('gastos').update(row).eq('id',id)); }
+  else { ({error:err}=await db.from('gastos').insert(row)); }
+  if(err){ toast('Error: '+err.message,false); return; }
+  toast('✅ Gasto guardado');
+  closeModal();
+  await loadGas();
+  renderGasGlobal();
+  renderDetalle();
+  renderDashboard();
+}
+
+async function saveContrato(inmueble_id){
+  if(!isAdmin()) return toast('🔒 Solo administrador', false);
+  const fotoData = document.getElementById('fotodata-c')?.value;
+  if(!fotoData){ toast('Adjunta un PDF',false); return; }
+
+  let url_pdf = null;
+  try {
+    const res = await fetch(fotoData);
+    const blob = await res.blob();
+    const fname = `${Date.now()}.pdf`;
+    const {data:upData, error:upErr} = await db.storage.from('contratos').upload(fname, blob, {contentType:'application/pdf', upsert:false});
+    if(upErr){
+      if(upErr.message && upErr.message.toLowerCase().includes('bucket')){
+        showBucketError('contratos');
+        return;
+      }
+      throw upErr;
+    }
+    const {data:urlData} = db.storage.from('contratos').getPublicUrl(fname);
+    url_pdf = urlData?.publicUrl;
+  } catch(e){
+    toast('Error subida: '+e.message, false);
+    return;
+  }
+
+  const row={
+    inmueble_id: parseInt(inmueble_id),
+    nombre: document.getElementById('fcn').value||'Contrato',
+    tipo: document.getElementById('fct').value||'Arrendamiento',
+    fecha_inicio: document.getElementById('fci').value||null,
+    fecha_fin: document.getElementById('fcf').value||null,
+    url_pdf,
+  };
+  const {error}=await db.from('contratos').insert(row);
+  if(error){ toast('Error: '+error.message,false); return; }
+  toast('✅ Contrato subido');
+  closeModal();
+  await loadCon();
+  renderDetalle();
+}
+
+async function saveReforma(id){
+  if(!isAdmin()) return toast('🔒 Solo administrador', false);
+  const inmSel=document.getElementById('finm')?.value;
+  const row={
+    inmueble_id: inmSel?parseInt(inmSel):null,
+    descripcion: document.getElementById('fdes').value||null,
+    presupuesto: parseFloat(document.getElementById('fpres').value)||null,
+    coste_real: parseFloat(document.getElementById('fcost').value)||null,
+    fecha_inicio: document.getElementById('ffi').value||null,
+    fecha_fin: document.getElementById('fff').value||null,
+    empresa: document.getElementById('femp').value||null,
+    estado: document.getElementById('fest').value||'Pendiente',
+    notas: document.getElementById('fnot').value||null,
+  };
+  let err;
+  if(id){ ({error:err}=await db.from('reformas').update(row).eq('id',id)); }
+  else { ({error:err}=await db.from('reformas').insert(row)); }
+  if(err){ toast('Error: '+err.message,false); return; }
+  toast('✅ Reforma guardada');
+  closeModal();
+  await loadRef();
+  renderRefGlobal();
+  renderDetalle();
+}
+
+async function saveIncidencia(id){
+  if(!isAdmin()) return toast('🔒 Solo administrador', false);
+  const inmSel=document.getElementById('finm')?.value;
+  const row={
+    inmueble_id: inmSel?parseInt(inmSel):null,
+    tipo: document.getElementById('ftipo').value||null,
+    estado: document.getElementById('fest').value||'Pendiente',
+    fecha: document.getElementById('ffec').value||null,
+    coste: parseFloat(document.getElementById('fcost').value)||null,
+    descripcion: document.getElementById('fdes').value||null,
+  };
+  let err;
+  if(id){ ({error:err}=await db.from('incidencias').update(row).eq('id',id)); }
+  else { ({error:err}=await db.from('incidencias').insert(row)); }
+  if(err){ toast('Error: '+err.message,false); return; }
+  toast('✅ Incidencia guardada');
+  closeModal();
+  await loadInc();
+  renderDetalle();
+}
+
+async function saveCobro(id){
+  if(!isAdmin()) return toast('🔒 Solo administrador', false);
+  const inmSel=document.getElementById('finm')?.value;
+  const row={
+    inmueble_id: inmSel?parseInt(inmSel):null,
+    importe: parseFloat(document.getElementById('fimp').value)||null,
+    fecha: document.getElementById('ffec').value||null,
+    concepto: document.getElementById('fcon').value||null,
+    inquilino: document.getElementById('finq').value||null,
+  };
+  let err;
+  if(id){ ({error:err}=await db.from('cobros').update(row).eq('id',id)); }
+  else { ({error:err}=await db.from('cobros').insert(row)); }
+  if(err){ toast('Error: '+err.message,false); return; }
+  toast('✅ Cobro registrado');
+  closeModal();
+  await loadCob();
+  renderDetalle();
+  renderDashboard();
+}
+
+function editGasto(id){ const g=gastos.find(x=>x.id===id); if(g) openModal('gasto',g); }
+function editReforma(id){ const r=reformas.find(x=>x.id===id); if(r) openModal('reforma',r); }
+function editIncidencia(id){ const i=incidencias.find(x=>x.id===id); if(i) openModal('incidencia',i); }
+
+async function delGasto(id){
+  if(!isAdmin()) return toast('🔒 Solo administrador', false);
+  if(!confirm('¿Eliminar este gasto?')) return;
+  await db.from('gastos').delete().eq('id',id);
+  toast('🗑 Gasto eliminado');
+  await loadGas(); renderGasGlobal(); renderDetalle(); renderDashboard();
+}
+async function delCobro(id){
+  if(!isAdmin()) return toast('🔒 Solo administrador', false);
+  if(!confirm('¿Eliminar este cobro?')) return;
+  await db.from('cobros').delete().eq('id',id);
+  toast('🗑 Cobro eliminado');
+  await loadCob(); renderDetalle(); renderDashboard();
+}
+async function delReforma(id){
+  if(!isAdmin()) return toast('🔒 Solo administrador', false);
+  if(!confirm('¿Eliminar esta reforma?')) return;
+  await db.from('reformas').delete().eq('id',id);
+  toast('🗑 Reforma eliminada');
+  await loadRef(); renderRefGlobal(); renderDetalle();
+}
+async function delIncidencia(id){
+  if(!isAdmin()) return toast('🔒 Solo administrador', false);
+  if(!confirm('¿Eliminar esta incidencia?')) return;
+  await db.from('incidencias').delete().eq('id',id);
+  toast('🗑 Incidencia eliminada');
+  await loadInc(); renderDetalle();
+}
+async function delContrato(id){
+  if(!isAdmin()) return toast('🔒 Solo administrador', false);
+  if(!confirm('¿Eliminar este contrato?')) return;
+  await db.from('contratos').delete().eq('id',id);
+  toast('🗑 Contrato eliminado');
+  await loadCon(); renderDetalle();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// START
+// ═════════════════════════════════════════════════════════════════════════════
+// La app solo se carga tras login. Por defecto mostramos la pantalla de login.
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('login-pwd').focus();
+});
+</script>
+
+<!--
+═══════════════════════════════════════════════════════════════════════════════
+SQL A EJECUTAR EN SUPABASE (SQL EDITOR)
+═══════════════════════════════════════════════════════════════════════════════
+
+-- 1. AMPLIAR TABLA INMUEBLES con nuevos campos
+ALTER TABLE inmuebles
+  ADD COLUMN IF NOT EXISTS cuota_hipoteca NUMERIC,
+  ADD COLUMN IF NOT EXISTS interes_hipoteca NUMERIC,
+  ADD COLUMN IF NOT EXISTS num_habitaciones INTEGER,
+  ADD COLUMN IF NOT EXISTS habitaciones_ocupadas INTEGER,
+  ADD COLUMN IF NOT EXISTS precio_habitacion NUMERIC,
+  ADD COLUMN IF NOT EXISTS precio_noche NUMERIC,
+  ADD COLUMN IF NOT EXISTS ocupacion_media NUMERIC,
+  ADD COLUMN IF NOT EXISTS inquilino_nombre TEXT,
+  ADD COLUMN IF NOT EXISTS inquilino_dni TEXT,
+  ADD COLUMN IF NOT EXISTS inquilino_telefono TEXT,
+  ADD COLUMN IF NOT EXISTS inquilino_email TEXT,
+  ADD COLUMN IF NOT EXISTS fecha_inicio_contrato DATE,
+  ADD COLUMN IF NOT EXISTS fecha_fin_contrato DATE,
+  ADD COLUMN IF NOT EXISTS fianza NUMERIC;
+
+-- 2. CREAR TABLA CONTRATOS
+CREATE TABLE IF NOT EXISTS contratos (
+  id BIGSERIAL PRIMARY KEY,
+  inmueble_id BIGINT REFERENCES inmuebles(id) ON DELETE CASCADE,
+  nombre TEXT,
+  tipo TEXT,
+  fecha_inicio DATE,
+  fecha_fin DATE,
+  url_pdf TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. CREAR TABLA INCIDENCIAS
+CREATE TABLE IF NOT EXISTS incidencias (
+  id BIGSERIAL PRIMARY KEY,
+  inmueble_id BIGINT REFERENCES inmuebles(id) ON DELETE CASCADE,
+  tipo TEXT,
+  estado TEXT DEFAULT 'Pendiente',
+  fecha DATE,
+  coste NUMERIC,
+  descripcion TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 4. POLÍTICAS RLS (RECOMENDADO: desactivar RLS si es app privada)
+-- O bien aplicar políticas permisivas para desarrollo:
+ALTER TABLE contratos DISABLE ROW LEVEL SECURITY;
+ALTER TABLE incidencias DISABLE ROW LEVEL SECURITY;
+-- (Si quieres mantener RLS, crea políticas adecuadas para tu caso de uso)
+
+-- 5. CREAR BUCKETS DE STORAGE (ejecuta en Storage > New bucket, o vía SQL)
+-- Bucket: facturas (público)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('facturas', 'facturas', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Bucket: contratos (público)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('contratos', 'contratos', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- 6. POLÍTICAS DE STORAGE (permitir subida y lectura pública)
+CREATE POLICY "Permitir subida facturas" ON storage.objects
+  FOR INSERT TO public WITH CHECK (bucket_id = 'facturas');
+CREATE POLICY "Permitir lectura facturas" ON storage.objects
+  FOR SELECT TO public USING (bucket_id = 'facturas');
+CREATE POLICY "Permitir eliminación facturas" ON storage.objects
+  FOR DELETE TO public USING (bucket_id = 'facturas');
+
+CREATE POLICY "Permitir subida contratos" ON storage.objects
+  FOR INSERT TO public WITH CHECK (bucket_id = 'contratos');
+CREATE POLICY "Permitir lectura contratos" ON storage.objects
+  FOR SELECT TO public USING (bucket_id = 'contratos');
+CREATE POLICY "Permitir eliminación contratos" ON storage.objects
+  FOR DELETE TO public USING (bucket_id = 'contratos');
+
+-- 7. TABLA DE CONFIGURACIÓN (CONTRASEÑAS) — NUEVO
+CREATE TABLE IF NOT EXISTS app_config (
+  id INTEGER PRIMARY KEY DEFAULT 1,
+  admin_pwd_hash TEXT NOT NULL,
+  consultor_pwd_hash TEXT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT single_row CHECK (id = 1)
+);
+ALTER TABLE app_config DISABLE ROW LEVEL SECURITY;
+
+-- La app inserta automáticamente la fila con contraseñas por defecto en el primer login:
+-- Admin: admin1234
+-- Consultor: consultor1234
+-- IMPORTANTE: cámbialas inmediatamente desde la pestaña ⚙️ Ajustes tras el primer login.
+
+═══════════════════════════════════════════════════════════════════════════════
+-->
+</body>
+</html>
