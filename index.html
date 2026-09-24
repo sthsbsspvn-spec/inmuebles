@@ -299,6 +299,7 @@ body.consultor .btn-ai{pointer-events:none;opacity:.4;}
         <div class="role-icon">👁</div><div class="role-name">Consultor</div><div class="role-desc">Solo lectura</div>
       </div>
     </div>
+    <div id="login-faceid-box"></div>
     <div id="login-error-box"></div>
     <input type="password" class="login-input" id="login-pwd" placeholder="• • • • • • • •" autocomplete="off" onkeydown="if(event.key==='Enter')doLogin()">
     <button class="login-btn" id="login-btn" onclick="doLogin()">Iniciar sesión</button>
@@ -430,6 +431,15 @@ body.consultor .btn-ai{pointer-events:none;opacity:.4;}
     </div>
 
     <div class="card">
+      <div class="ct">🔓 Face ID / Touch ID</div>
+      <div style="font-size:12px;color:var(--gray2);line-height:1.6;margin-bottom:12px">
+        Activa el desbloqueo rápido con reconocimiento facial o huella en <strong>este dispositivo</strong>, para no tener que escribir la contraseña cada vez. La verificación la hace tu propio iPhone/iPad/Mac — nada se envía a internet. Hay que activarlo por separado en cada dispositivo (iPad, iPhone, Mac).
+      </div>
+      <div id="faceid-status" style="margin-bottom:12px;font-size:13px"></div>
+      <button class="btn-p" id="faceid-toggle-btn" onclick="toggleFaceIdForCurrentRole()">Activar Face ID / Touch ID</button>
+    </div>
+
+    <div class="card">
       <div class="ct">ℹ️ Información de niveles</div>
       <div style="padding:10px;background:var(--bg3);border-radius:8px;margin-bottom:10px">
         <div style="color:var(--gold);font-weight:700;margin-bottom:6px;font-size:13px">👑 Administrador</div>
@@ -510,6 +520,7 @@ let sessionStart = null;
 let lastActivity = null;
 let inactivityTimer = null;
 let countdownTimer = null;
+let lastVerifiedHash = null; // hash de la última contraseña verificada correctamente (para activar Face ID)
 
 // Hash simple (no es criptográficamente seguro pero suficiente para evitar leer la contraseña a simple vista en la BD)
 async function hashPwd(pwd){
@@ -538,6 +549,7 @@ function selectRole(role){
   selectedRole = role;
   document.getElementById('role-admin').classList.toggle('active', role==='admin');
   document.getElementById('role-consultor').classList.toggle('active', role==='consultor');
+  renderFaceIdUI();
   document.getElementById('login-pwd').focus();
 }
 
@@ -569,29 +581,37 @@ async function doLogin(){
     }
 
     // Login OK
-    currentRole = selectedRole;
-    sessionStart = new Date();
-    lastActivity = new Date();
-    sessionStorage.setItem('dg_role', currentRole);
-    sessionStorage.setItem('dg_start', sessionStart.toISOString());
-
-    document.body.classList.remove('admin','consultor');
-    document.body.classList.add(currentRole);
-
-    // Actualizar badge en header
-    const badge = document.getElementById('h-role-badge');
-    badge.className = 'h-role-badge ' + currentRole;
-    badge.textContent = currentRole==='admin' ? '👑 Admin' : '👁 Consultor';
-
-    // Ocultar login y arrancar app
-    document.getElementById('login-screen').classList.add('hidden');
-    setupActivityTracking();
-    initApp();
+    lastVerifiedHash = hashed;
+    completeLogin(selectedRole);
   } catch(e){
     errBox.innerHTML = `<div class="login-error">Error: ${e.message}</div>`;
     btn.disabled = false;
     btn.textContent = 'Iniciar sesión';
   }
+}
+
+// Pasos comunes tras validar el acceso (por contraseña o por Face ID/Touch ID)
+function completeLogin(role){
+  currentRole = role;
+  sessionStart = new Date();
+  lastActivity = new Date();
+  sessionStorage.setItem('dg_role', currentRole);
+  sessionStorage.setItem('dg_start', sessionStart.toISOString());
+
+  document.body.classList.remove('admin','consultor');
+  document.body.classList.add(currentRole);
+
+  // Actualizar badge en header
+  const badge = document.getElementById('h-role-badge');
+  badge.className = 'h-role-badge ' + currentRole;
+  badge.textContent = currentRole==='admin' ? '👑 Admin' : '👁 Consultor';
+
+  // Ocultar login y arrancar app
+  document.getElementById('login-screen').classList.add('hidden');
+  const btn = document.getElementById('login-btn');
+  if(btn){ btn.disabled = false; btn.textContent = 'Iniciar sesión'; }
+  setupActivityTracking();
+  initApp();
 }
 
 function doLogout(silent=false){
@@ -642,6 +662,7 @@ function updateSessionInfo(){
   const mins = Math.max(0, Math.floor(restante/60000));
   const secs = Math.max(0, Math.floor((restante%60000)/1000));
   document.getElementById('aj-cierre').textContent = `${mins}m ${secs}s`;
+  renderFaceIdSettings();
 }
 
 async function savePasswords(){
@@ -667,6 +688,8 @@ async function savePasswords(){
   if(newCons) update.consultor_pwd_hash = await hashPwd(newCons);
   const {error} = await db.from('app_config').update(update).eq('id', 1);
   if(error){ toast('Error: '+error.message, false); return; }
+  if(currentRole==='admin' && update.admin_pwd_hash) lastVerifiedHash = update.admin_pwd_hash;
+  if(currentRole==='consultor' && update.consultor_pwd_hash) lastVerifiedHash = update.consultor_pwd_hash;
   toast('✅ Contraseñas actualizadas');
   document.getElementById('aj-actual').value = '';
   document.getElementById('aj-new-admin').value = '';
@@ -674,6 +697,151 @@ async function savePasswords(){
 }
 
 const isAdmin = () => currentRole === 'admin';
+
+// ═════════════════════════════════════════════════════════════════════════════
+// FACE ID / TOUCH ID (WebAuthn local, sin servidor) ───────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// La verificación biométrica la hace el propio dispositivo (iPhone/iPad/Mac).
+// Solo guarda en este dispositivo el ID de la credencial y el hash de la
+// contraseña ya verificado (el mismo valor que ya viaja a Supabase en cada
+// login normal). Nunca se guarda la contraseña en texto claro, y nada de esto
+// sale del dispositivo ni pasa por internet.
+const FACEID_KEY = 'dg_faceid_creds';
+
+function faceIdSupported(){
+  return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create);
+}
+function getFaceIdCreds(){
+  try { return JSON.parse(localStorage.getItem(FACEID_KEY)||'{}'); } catch(e){ return {}; }
+}
+function setFaceIdCreds(obj){
+  try { localStorage.setItem(FACEID_KEY, JSON.stringify(obj)); } catch(e){ console.warn('No se pudo guardar Face ID',e); }
+}
+function b64uToBuf(b64u){
+  const b64 = b64u.replace(/-/g,'+').replace(/_/g,'/');
+  const pad = b64.length%4 ? '='.repeat(4-b64.length%4) : '';
+  const str = atob(b64+pad);
+  const buf = new Uint8Array(str.length);
+  for(let i=0;i<str.length;i++) buf[i]=str.charCodeAt(i);
+  return buf;
+}
+function bufToB64u(buf){
+  let str='';
+  new Uint8Array(buf).forEach(b=>str+=String.fromCharCode(b));
+  return btoa(str).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+
+async function enableFaceId(role, hash){
+  if(!faceIdSupported()){ toast('Face ID / Touch ID no disponible en este navegador', false); return; }
+  if(!hash){ toast('Vuelve a iniciar sesión con tu contraseña y prueba de nuevo', false); return; }
+  try {
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const userId = crypto.getRandomValues(new Uint8Array(16));
+    const cred = await navigator.credentials.create({
+      publicKey: {
+        challenge,
+        rp: { name: 'DelSanto & Gos Private Wealth' },
+        user: { id: userId, name: `dg-${role}`, displayName: role==='admin'?'Administrador':'Consultor' },
+        pubKeyCredParams: [{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+        authenticatorSelection: { authenticatorAttachment:'platform', userVerification:'required' },
+        timeout: 60000,
+        attestation: 'none'
+      }
+    });
+    if(!cred) throw new Error('No se pudo crear la credencial');
+    const creds = getFaceIdCreds();
+    creds[role] = { credId: bufToB64u(cred.rawId), hash };
+    setFaceIdCreds(creds);
+    toast('✅ Face ID / Touch ID activado en este dispositivo');
+  } catch(e){
+    console.warn(e);
+    toast('No se pudo activar Face ID: '+e.message, false);
+  }
+  renderFaceIdUI();
+  renderFaceIdSettings();
+}
+
+function disableFaceId(role){
+  const creds = getFaceIdCreds();
+  delete creds[role];
+  setFaceIdCreds(creds);
+  toast('Face ID / Touch ID desactivado en este dispositivo');
+  renderFaceIdUI();
+  renderFaceIdSettings();
+}
+
+async function tryFaceIdLogin(role){
+  const creds = getFaceIdCreds();
+  const entry = creds[role];
+  if(!entry) return;
+  try {
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const assertion = await navigator.credentials.get({
+      publicKey: {
+        challenge,
+        allowCredentials: [{ id: b64uToBuf(entry.credId), type:'public-key' }],
+        userVerification: 'required',
+        timeout: 60000
+      }
+    });
+    if(!assertion) throw new Error('Verificación cancelada');
+    // Comprobar que la contraseña no ha cambiado desde que se activó Face ID
+    const cfg = await ensureConfigTable();
+    const expectedHash = cfg ? (role==='admin'?cfg.admin_pwd_hash:cfg.consultor_pwd_hash) : await hashPwd(DEFAULT_PWD[role]);
+    if(entry.hash !== expectedHash){
+      toast('La contraseña cambió. Inicia sesión con la contraseña y vuelve a activar Face ID.', false);
+      disableFaceId(role);
+      return;
+    }
+    lastVerifiedHash = entry.hash;
+    completeLogin(role);
+  } catch(e){
+    console.warn('Face ID cancelado o fallido', e);
+    // Silencioso: el usuario puede seguir con la contraseña normal
+  }
+}
+
+function renderFaceIdUI(){
+  const box = document.getElementById('login-faceid-box');
+  if(!box) return;
+  if(!faceIdSupported()){ box.innerHTML=''; return; }
+  const creds = getFaceIdCreds();
+  const has = creds[selectedRole];
+  box.innerHTML = has
+    ? `<button type="button" class="login-btn" style="background:linear-gradient(135deg,#60a5fa,#3b82f6);margin-bottom:14px" onclick="tryFaceIdLogin('${selectedRole}')">🔓 Entrar con Face ID / Touch ID</button>
+       <div class="login-divider"><div class="line"></div><div class="text">o con tu contraseña</div><div class="line"></div></div>`
+    : '';
+}
+
+function renderFaceIdSettings(){
+  const box = document.getElementById('faceid-status');
+  const btn = document.getElementById('faceid-toggle-btn');
+  if(!box || !btn || !currentRole) return;
+  if(!faceIdSupported()){
+    box.innerHTML = '<span style="color:var(--gray)">No disponible en este navegador o dispositivo.</span>';
+    btn.style.display='none';
+    return;
+  }
+  btn.style.display='inline-block';
+  const creds = getFaceIdCreds();
+  const on = !!creds[currentRole];
+  box.innerHTML = on
+    ? `<span style="color:var(--green)">✅ Activado para ${currentRole==='admin'?'Administrador':'Consultor'} en este dispositivo</span>`
+    : `<span style="color:var(--gray2)">Desactivado en este dispositivo</span>`;
+  btn.textContent = on ? '🚫 Desactivar' : '🔓 Activar Face ID / Touch ID';
+  btn.className = on ? 'btn-s' : 'btn-p';
+}
+
+async function toggleFaceIdForCurrentRole(){
+  if(!currentRole) return;
+  const creds = getFaceIdCreds();
+  if(creds[currentRole]){
+    if(!confirm('¿Desactivar Face ID / Touch ID en este dispositivo?')) return;
+    disableFaceId(currentRole);
+    return;
+  }
+  await enableFaceId(currentRole, lastVerifiedHash);
+}
 
 // ═════════════════════════════════════════════════════════════════════════════
 // SETUP CHECK — verifica que los buckets de Storage existen
@@ -828,13 +996,68 @@ function calcularIngresosMensuales() {
 //   (la amortización de capital no resta porque transforma cash en patrimonio)
 //
 // Nota: la categoría "Hipoteca" en gastos se excluye porque ya se contabiliza en cuota_hipoteca.
+// ═════════════════════════════════════════════════════════════════════════════
+// AMORTIZACIÓN DE PRÉSTAMOS (sistema francés, el estándar en hipotecas en España)
+// ═════════════════════════════════════════════════════════════════════════════
+// A partir de las condiciones del préstamo (capital, interés, plazo, fecha de
+// inicio) calcula cuánto de la cuota de ESTE mes es interés y cuánto es
+// amortización de capital, avanzando la amortización mes a mes desde el
+// inicio del préstamo. Si el inmueble no tiene condiciones completas, se usa
+// el campo manual "interés/mes" de siempre (o toda la cuota como interés si
+// tampoco hay interés manual, hipótesis conservadora — igual que antes).
+function calcularHipoteca(i){
+  const cuotaManual = i.cuota_hipoteca || 0;
+  const tieneCondiciones = i.prestamo_capital>0 && i.prestamo_tipo_interes!=null && i.prestamo_tipo_interes>=0 && i.prestamo_plazo_meses>0 && i.prestamo_fecha_inicio;
+
+  if(!tieneCondiciones){
+    const interes = i.interes_hipoteca != null ? i.interes_hipoteca : cuotaManual;
+    return { cuota: cuotaManual, interes, amortizacion: Math.max(0, cuotaManual-interes), origen:'manual', esCredito:false, vencimiento:null, diasVencimiento:null, capitalPendiente:null };
+  }
+
+  const capital = parseFloat(i.prestamo_capital);
+  const rMensual = parseFloat(i.prestamo_tipo_interes)/100/12;
+  const plazo = parseInt(i.prestamo_plazo_meses);
+  const inicio = new Date(i.prestamo_fecha_inicio);
+  const hoy = new Date();
+
+  // Fecha en la que finaliza el préstamo/cuenta de crédito
+  const vencimiento = new Date(inicio.getFullYear(), inicio.getMonth()+plazo, inicio.getDate());
+  const diasVencimiento = Math.ceil((vencimiento-hoy)/86400000);
+
+  // Cuenta de crédito / solo intereses: no amortiza capital mes a mes.
+  // Al llegar la fecha de vencimiento hay que devolver el capital ÍNTEGRO de golpe.
+  if(i.prestamo_solo_intereses){
+    const interes = capital*rMensual;
+    return { cuota: interes, interes, amortizacion: 0, origen:'prestamo', esCredito:true, vencimiento, diasVencimiento, capitalPendiente: capital };
+  }
+
+  // Cuota fija mensual (sistema francés) — préstamo/hipoteca normal, que sí amortiza capital
+  const cuota = rMensual>0
+    ? capital*(rMensual*Math.pow(1+rMensual,plazo))/(Math.pow(1+rMensual,plazo)-1)
+    : capital/plazo;
+
+  // Meses transcurridos desde el inicio del préstamo hasta hoy
+  let meses = (hoy.getFullYear()-inicio.getFullYear())*12 + (hoy.getMonth()-inicio.getMonth());
+  meses = Math.min(Math.max(meses,0), Math.max(plazo-1,0));
+
+  // Avanzar el saldo pendiente mes a mes hasta llegar al mes actual
+  let saldo = capital;
+  for(let m=0;m<meses;m++){
+    const interesMes = saldo*rMensual;
+    saldo = Math.max(0, saldo - (cuota-interesMes));
+  }
+  const interes = saldo*rMensual;
+  return { cuota, interes, amortizacion: Math.max(0, cuota-interes), origen:'prestamo', esCredito:false, vencimiento, diasVencimiento, capitalPendiente: saldo };
+}
+
 function calcularCashflowMensual() {
   const ingresos = calcularIngresosMensuales();
-  const cuotas = inmuebles.reduce((s,i)=>s+(i.cuota_hipoteca||0),0);
-  const intereses = inmuebles.reduce((s,i)=>{
-    const c = i.cuota_hipoteca||0;
-    return s + (i.interes_hipoteca != null ? i.interes_hipoteca : c);
-  },0);
+  let cuotas = 0, intereses = 0;
+  inmuebles.forEach(i=>{
+    const h = calcularHipoteca(i);
+    cuotas += h.cuota;
+    intereses += h.interes;
+  });
   const amortizacion = Math.max(0, cuotas - intereses);
   // Solo gastos recurrentes de los últimos 12 meses, mensualizados
   const hoy = new Date();
@@ -985,9 +1208,10 @@ function renderDetalle(){
     ingresoMes = inm.precio_noche * 30 * (inm.ocupacion_media/100);
 
   const alquilerAnual = ingresoMes * 12;
-  const cuotaMes = inm.cuota_hipoteca || 0;
-  const interesMes = inm.interes_hipoteca != null ? inm.interes_hipoteca : cuotaMes;
-  const amortMes = Math.max(0, cuotaMes - interesMes);
+  const hip = calcularHipoteca(inm);
+  const cuotaMes = hip.cuota;
+  const interesMes = hip.interes;
+  const amortMes = hip.amortizacion;
   const gastosMes = gRec/12;
   // Cashflow real (dinero que entra al bolsillo cada mes): resta la cuota entera porque la salida real de caja incluye amortización
   const cashflow = ingresoMes - cuotaMes - gastosMes;
@@ -1016,8 +1240,11 @@ function renderDetalle(){
       <div class="srow"><span class="sl">Ingresos estimados/mes</span><strong style="color:var(--amber)">${EUR(ingresoMes)}</strong></div>`;
   }
 
+  const alertaCredito = hip.esCredito && hip.diasVencimiento!=null && hip.diasVencimiento<=180;
+
   el.innerHTML=`
     ${alertaContrato?`<div class="contrato-alert"><div class="ca-icon">⚠️</div><div class="ca-content"><div class="ca-title">Contrato finaliza en ${diasContrato} días</div><div class="ca-sub">${fmtDate(inm.fecha_fin_contrato)} · Revisa renovación o nuevo inquilino</div></div></div>`:''}
+    ${alertaCredito?`<div class="contrato-alert"><div class="ca-icon">🏦</div><div class="ca-content"><div class="ca-title">Cuenta de crédito ${hip.diasVencimiento<0?'vencida':`vence en ${hip.diasVencimiento} días`}</div><div class="ca-sub">${fmtDate(hip.vencimiento)} · Hay que amortizar el capital íntegro: ${EUR(hip.capitalPendiente)}</div></div></div>`:''}
 
     <div class="cf-card">
       <div class="cf-title">💰 Cash flow mensual</div>
@@ -1056,7 +1283,10 @@ function renderDetalle(){
       ${inm.tipo_alquiler?`<div class="srow"><span class="sl">Modalidad alquiler</span><span class="badge b-tipo">${labelTA(inm.tipo_alquiler)}</span></div>`:''}
       ${tipoAlquilerInfo}
       ${inm.notas?`<div style="margin-top:10px;font-size:12px;color:var(--gray2);font-style:italic;padding:10px;background:var(--bg3);border-radius:8px">${inm.notas}</div>`:''}
-      <button class="btn-sm" style="margin-top:12px" onclick='editInm(${inmd})'>✏️ Editar ficha</button>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn-sm" onclick='editInm(${inmd})'>✏️ Editar ficha</button>
+        ${isAdmin()?`<button class="btn-d" onclick="delInm(${id})">🗑 Eliminar inmueble</button>`:''}
+      </div>
     </div>
 
     <div class="card">
@@ -1070,6 +1300,7 @@ function renderDetalle(){
         ['Cuota hipoteca/mes',EUR(cuotaMes),'var(--red)'],
         ['— Intereses/mes',EUR(interesMes),'var(--red)'],
         ['— Amortización/mes',EUR(amortMes),'var(--green)'],
+        ...(hip.esCredito?[['🏦 Vence (capital íntegro)',fmtDate(hip.vencimiento)+' · '+EUR(hip.capitalPendiente),hip.diasVencimiento<=180?'var(--red)':'var(--amber)']]:[]),
         ['Patrimonio neto',EUR((inm.valor||0)-(inm.deuda||0)),'var(--blue)'],
         ['Alquiler mensual',EUR(ingresoMes),'var(--purple)'],
         ['Gastos recurrentes/año',EUR(gRec),'var(--red)'],
@@ -1341,7 +1572,7 @@ function renderCharts() {
     const gRec = gastos.filter(g=>g.inmueble_id===i.id && CATS_REC.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
     const rCost = reformas.filter(r=>r.inmueble_id===i.id).reduce((s,r)=>s+(parseFloat(r.coste_real||r.presupuesto)||0),0);
     const inv = (i.subasta||i.valor||0)+gInv+rCost;
-    const intAnual = (i.interes_hipoteca != null ? i.interes_hipoteca : (i.cuota_hipoteca||0)) * 12;
+    const intAnual = calcularHipoteca(i).interes * 12;
     rentPorCiudad[i.ciudad].ing += i.alquiler*12 - gRec - intAnual;
     rentPorCiudad[i.ciudad].inv += inv;
   });
@@ -1371,8 +1602,9 @@ function renderCharts() {
     const gRec = gastos.filter(g=>g.inmueble_id===i.id && CATS_REC.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
     const rCost = reformas.filter(r=>r.inmueble_id===i.id).reduce((s,r)=>s+(parseFloat(r.coste_real||r.presupuesto)||0),0);
     const inv = (i.subasta||i.valor||0)+gInv+rCost;
-    // Solo intereses restan a rentabilidad. Si no hay interés informado, se asume que toda la cuota es interés (peor caso)
-    const intAnual = (i.interes_hipoteca != null ? i.interes_hipoteca : (i.cuota_hipoteca||0)) * 12;
+    // Solo intereses restan a rentabilidad. Si no hay condiciones de préstamo ni interés
+    // manual informado, se asume que toda la cuota es interés (peor caso, más conservador)
+    const intAnual = calcularHipoteca(i).interes * 12;
     const rentN = inv>0 ? ((i.alquiler*12 - gRec - intAnual) / inv * 100) : 0;
     const rentB = inv>0 ? (i.alquiler*12 / inv * 100) : 0;
     return {...i, rentN, rentB, inv};
@@ -1408,6 +1640,11 @@ function renderAlertas() {
     if(d!=null && d>0 && d<=90){
       alertas.push({inm:i, dias:d, tipo:'contrato'});
     }
+    // Cuentas de crédito: avisar con más antelación porque al vencer se debe el capital íntegro
+    const h = calcularHipoteca(i);
+    if(h.esCredito && h.diasVencimiento!=null && h.diasVencimiento<=180){
+      alertas.push({inm:i, dias:h.diasVencimiento, tipo:'credito', capital:h.capitalPendiente, vencimiento:h.vencimiento});
+    }
   });
   alertas.sort((a,b)=>a.dias-b.dias);
 
@@ -1428,18 +1665,22 @@ function renderAlertas() {
   const secc = [
     ['🔴 Urgente · ≤ 30 días', grupos.urgente, 'var(--red)'],
     ['🟡 Próximo · 31-60 días', grupos.proximo, 'var(--amber)'],
-    ['🔵 Aviso · 61-90 días', grupos.aviso, 'var(--blue)'],
+    ['🔵 Aviso · 61-180 días', grupos.aviso, 'var(--blue)'],
   ];
   secc.forEach(([tit,items,col])=>{
     if(!items.length) return;
     html += `<div class="card"><div class="ct" style="color:${col}">${tit} (${items.length})</div>`;
     items.forEach(a=>{
+      const badgeTxt = a.dias<0 ? 'Vencido' : `${a.dias}d`;
+      const cuerpo = a.tipo==='credito'
+        ? `⚠️ Cuenta de crédito: al vencer se amortiza el capital íntegro <strong style="color:${col}">${EUR(a.capital)}</strong> · vence el <strong style="color:${col}">${fmtDate(a.vencimiento)}</strong>`
+        : `Vence el <strong style="color:${col}">${fmtDate(a.inm.fecha_fin_contrato)}</strong> · Renta ${EUR(a.inm.alquiler)}/mes`;
       html += `<div class="inm-card" style="--estado-color:${col};margin-bottom:8px" onclick="goDetalle(${a.inm.id})">
         <div class="inm-header">
-          <div><div class="inm-n">${a.inm.nombre}</div><div class="inm-d">${a.inm.ciudad} · ${a.inm.inquilino_nombre||'—'}</div></div>
-          <span class="badge b-alert">${a.dias}d</span>
+          <div><div class="inm-n">${a.inm.nombre}${a.tipo==='credito'?' · 🏦 Cuenta de crédito':''}</div><div class="inm-d">${a.inm.ciudad} · ${a.inm.inquilino_nombre||'—'}</div></div>
+          <span class="badge b-alert">${badgeTxt}</span>
         </div>
-        <div style="margin-top:8px;font-size:11.5px;color:var(--gray2)">Vence el <strong style="color:${col}">${fmtDate(a.inm.fecha_fin_contrato)}</strong> · Renta ${EUR(a.inm.alquiler)}/mes</div>
+        <div style="margin-top:8px;font-size:11.5px;color:var(--gray2)">${cuerpo}</div>
       </div>`;
     });
     html += '</div>';
@@ -1562,6 +1803,26 @@ const fi=(id,v,type='text',ph='')=>`<input id="${id}" type="${type}" value="${v!
 const fs=(id,v,opts)=>`<select id="${id}">${opts.map(o=>`<option value="${o}"${o==v?' selected':''}>${o||'—'}</option>`).join('')}</select>`;
 const ff=(l,inp)=>`<div class="field"><label>${l}</label>${inp}</div>`;
 
+// Bloque reutilizable de condiciones del préstamo (mInm y mFinanciero comparten los mismos IDs de campo)
+function loanTermsFieldsHTML(d){
+  return `
+    <div style="padding:10px;background:var(--bg3);border-radius:8px;margin-bottom:12px">
+      <div style="font-size:10px;color:var(--gold2);letter-spacing:2px;text-transform:uppercase;font-weight:700;margin-bottom:8px">📐 Condiciones del préstamo (cálculo automático)</div>
+      <div style="font-size:10.5px;color:var(--gray2);margin-bottom:10px;line-height:1.5">Si rellenas esto, la app calcula sola cada mes cuánto de la cuota es interés y cuánto amortización, según cómo avanza el préstamo. Si lo dejas vacío, se usa el interés manual de arriba.</div>
+      <div class="g2">
+        ${ff('Capital inicial (€)',fi('fpcap',d.prestamo_capital,'number','Importe prestado'))}
+        ${ff('Interés anual (%)',fi('fptin',d.prestamo_tipo_interes,'number','Ej: 3.2'))}
+        ${ff('Plazo (meses)',fi('fpplazo',d.prestamo_plazo_meses,'number','Ej: 300 = 25 años'))}
+        ${ff('Fecha de inicio',fi('fpfecha',d.prestamo_fecha_inicio,'date'))}
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--gray2);margin-top:6px;cursor:pointer">
+        <input type="checkbox" id="fpsolo" ${d.prestamo_solo_intereses?'checked':''} style="width:16px;height:16px">
+        Es cuenta de crédito (solo intereses, sin amortización de capital)
+      </label>
+      <div style="font-size:10px;color:var(--gray);margin-top:6px;line-height:1.5">Si marcas esto: el "Plazo" es la duración de la cuenta de crédito. Durante ese tiempo solo se paga interés (el capital no baja) y, al llegar la fecha de vencimiento, hay que devolver el capital íntegro de una vez. La app te avisará en la pestaña Alertas según se acerque esa fecha.</div>
+    </div>`;
+}
+
 function mInm(d){
   document.getElementById('mc').innerHTML=`
     <div class="modal-title">${d.id?'Editar inmueble':'Nuevo inmueble'}</div>
@@ -1584,8 +1845,9 @@ function mInm(d){
       ${ff('Interés/mes (€)',fi('finteres',d.interes_hipoteca,'number','Parte de la cuota'))}
     </div>
     <div style="padding:8px 10px;background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.2);border-radius:8px;margin-bottom:12px;font-size:10.5px;color:var(--gray2);line-height:1.5">
-      💡 <strong style="color:var(--blue)">Interés vs Amortización:</strong> del recibo de la hipoteca, indica solo la parte de <strong>interés</strong>. La amortización de capital no es un gasto real (transforma cash en patrimonio). Si dejas el interés vacío, se asumirá que toda la cuota es interés (más conservador). Para cuentas de crédito donde solo se pagan intereses, pon el mismo importe en cuota e interés.
+      💡 <strong style="color:var(--blue)">Interés vs Amortización:</strong> del recibo de la hipoteca, indica solo la parte de <strong>interés</strong>. La amortización de capital no es un gasto real (transforma cash en patrimonio). Si dejas el interés vacío, se asumirá que toda la cuota es interés (más conservador). Para cuentas de crédito donde solo se pagan intereses, pon el mismo importe en cuota e interés. O, mejor aún, rellena abajo las condiciones del préstamo y se calculará solo.
     </div>
+    ${loanTermsFieldsHTML(d)}
     <div style="padding:10px;background:var(--bg3);border-radius:8px;margin-bottom:12px">
       <div style="font-size:10px;color:var(--gold2);letter-spacing:2px;text-transform:uppercase;font-weight:700;margin-bottom:8px">Alquiler por habitaciones</div>
       <div class="g3">
@@ -1670,8 +1932,9 @@ function mFinanciero(d){
     ${ff('Cuota hipoteca/mes (€)',fi('fcuota',d.cuota_hipoteca,'number','Cuota mensual total'))}
     ${ff('Interés/mes (€)',fi('finteres',d.interes_hipoteca,'number','Solo la parte de intereses'))}
     <div style="padding:8px 10px;background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.2);border-radius:8px;margin-bottom:12px;font-size:10.5px;color:var(--gray2);line-height:1.5">
-      💡 Solo el <strong style="color:var(--blue)">interés</strong> resta en rentabilidad. La amortización de capital transforma cash en patrimonio (no es gasto). Cuenta de crédito → cuota = interés.
+      💡 Solo el <strong style="color:var(--blue)">interés</strong> resta en rentabilidad. La amortización de capital transforma cash en patrimonio (no es gasto). Cuenta de crédito → cuota = interés. O, mejor aún, rellena abajo las condiciones del préstamo y se calculará solo.
     </div>
+    ${loanTermsFieldsHTML(d)}
     ${ff('Alquiler mensual (€)',fi('falq',d.alquiler,'number','Renta actual'))}
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px">
       <div style="font-size:9px;color:var(--gold2);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;font-weight:700">Vista previa</div>
@@ -1681,9 +1944,10 @@ function mFinanciero(d){
       <button class="btn-s" onclick="closeModal()">Cancelar</button>
       <button class="btn-p" onclick="saveFinanciero(${d.id})">💾 Guardar</button>
     </div>`;
-  ['fsub','fval','fdeu','falq','fcuota','finteres'].forEach(id=>{
+  ['fsub','fval','fdeu','falq','fcuota','finteres','fpcap','fptin','fpplazo','fpfecha'].forEach(id=>{
     document.getElementById(id)?.addEventListener('input', updateRentPreview);
   });
+  document.getElementById('fpsolo')?.addEventListener('change', updateRentPreview);
   updateRentPreview();
 }
 
@@ -1692,9 +1956,29 @@ function updateRentPreview(){
   const val=parseFloat(document.getElementById('fval')?.value)||0;
   const deu=parseFloat(document.getElementById('fdeu')?.value)||0;
   const alq=parseFloat(document.getElementById('falq')?.value)||0;
-  const cuota=parseFloat(document.getElementById('fcuota')?.value)||0;
+  const cuotaManual=parseFloat(document.getElementById('fcuota')?.value)||0;
   const interesRaw = document.getElementById('finteres')?.value;
-  const interes = interesRaw!=='' && interesRaw!=null ? parseFloat(interesRaw)||0 : cuota;
+
+  // Si hay condiciones de préstamo completas, usarlas (cálculo automático); si no, los campos manuales
+  const pcap = parseFloat(document.getElementById('fpcap')?.value)||0;
+  const ptinRaw = document.getElementById('fptin')?.value;
+  const pplazo = parseInt(document.getElementById('fpplazo')?.value)||0;
+  const pfecha = document.getElementById('fpfecha')?.value;
+  const psolo = document.getElementById('fpsolo')?.checked||false;
+
+  let cuota, interes, origen, hipInfo=null;
+  if(pcap>0 && ptinRaw!=='' && ptinRaw!=null && pplazo>0 && pfecha){
+    const h = calcularHipoteca({prestamo_capital:pcap, prestamo_tipo_interes:parseFloat(ptinRaw), prestamo_plazo_meses:pplazo, prestamo_fecha_inicio:pfecha, prestamo_solo_intereses:psolo});
+    cuota = h.cuota; interes = h.interes; origen = 'prestamo'; hipInfo = h;
+    // Reflejar el cálculo en los campos manuales, para que quede también ahí como referencia
+    const cuotaField=document.getElementById('fcuota'), interesField=document.getElementById('finteres');
+    if(cuotaField) cuotaField.value = cuota.toFixed(2);
+    if(interesField) interesField.value = interes.toFixed(2);
+  } else {
+    cuota = cuotaManual;
+    interes = interesRaw!=='' && interesRaw!=null ? parseFloat(interesRaw)||0 : cuota;
+    origen = 'manual';
+  }
   const amort = Math.max(0, cuota - interes);
   const base=sub||val;
   const el=document.getElementById('rent-preview');
@@ -1709,7 +1993,8 @@ function updateRentPreview(){
       Rent. bruta: <strong style="color:var(--amber);font-size:16px">${rentB}%</strong> · Neta: <strong style="color:var(--green);font-size:16px">${rentN}%</strong><br>
       <span style="color:var(--blue);font-size:12px">Patrimonio neto: ${EUR(neto)}</span><br>
       <span style="color:${cfReal>=0?'var(--green)':'var(--red)'};font-size:12px">Cashflow real: ${EUR(cfReal)}/mes</span>
-      ${cuota>0?`<br><span style="color:${cfPat>=0?'var(--green)':'var(--red)'};font-size:12px">Cashflow patrimonial: ${EUR(cfPat)}/mes</span><br><span style="color:var(--gray);font-size:11px">↳ Amort: ${EUR(amort)} · Interés: ${EUR(interes)}</span>`:''}
+      ${cuota>0?`<br><span style="color:${cfPat>=0?'var(--green)':'var(--red)'};font-size:12px">Cashflow patrimonial: ${EUR(cfPat)}/mes</span><br><span style="color:var(--gray);font-size:11px">↳ Amort: ${EUR(amort)} · Interés: ${EUR(interes)}${origen==='prestamo'?' · calculado del préstamo':''}</span>`:''}
+      ${hipInfo&&hipInfo.esCredito?`<br><span style="color:${hipInfo.diasVencimiento<=180?'var(--red)':'var(--amber)'};font-size:11px">⚠️ Cuenta de crédito: al vencer (${fmtDate(hipInfo.vencimiento)}) hay que amortizar el capital íntegro de ${EUR(hipInfo.capitalPendiente)}</span>`:''}
     `;
   } else {
     el.textContent='Introduce los valores para calcular';
@@ -1912,6 +2197,11 @@ async function saveInm(id){
     alquiler:parseFloat(document.getElementById('falq').value)||0,
     cuota_hipoteca:parseFloat(document.getElementById('fcuota').value)||null,
     interes_hipoteca:parseFloat(document.getElementById('finteres').value)||null,
+    prestamo_capital:parseFloat(document.getElementById('fpcap')?.value)||null,
+    prestamo_tipo_interes:parseFloat(document.getElementById('fptin')?.value)||null,
+    prestamo_plazo_meses:parseInt(document.getElementById('fpplazo')?.value)||null,
+    prestamo_fecha_inicio:document.getElementById('fpfecha')?.value||null,
+    prestamo_solo_intereses:document.getElementById('fpsolo')?.checked||false,
     num_habitaciones:parseInt(document.getElementById('fnhab').value)||null,
     habitaciones_ocupadas:parseInt(document.getElementById('fhabocu').value)||null,
     precio_habitacion:parseFloat(document.getElementById('fprecio_h').value)||null,
@@ -1938,6 +2228,11 @@ async function saveFinanciero(id){
     alquiler: parseFloat(document.getElementById('falq').value)||0,
     cuota_hipoteca: parseFloat(document.getElementById('fcuota').value)||null,
     interes_hipoteca: parseFloat(document.getElementById('finteres').value)||null,
+    prestamo_capital: parseFloat(document.getElementById('fpcap')?.value)||null,
+    prestamo_tipo_interes: parseFloat(document.getElementById('fptin')?.value)||null,
+    prestamo_plazo_meses: parseInt(document.getElementById('fpplazo')?.value)||null,
+    prestamo_fecha_inicio: document.getElementById('fpfecha')?.value||null,
+    prestamo_solo_intereses: document.getElementById('fpsolo')?.checked||false,
   };
   const {error}=await db.from('inmuebles').update(row).eq('id',id);
   if(error){ toast('Error: '+error.message,false); return; }
@@ -2169,11 +2464,43 @@ async function delContrato(id){
   await loadCon(); renderDetalle();
 }
 
+async function delInm(id){
+  if(!isAdmin()) return toast('🔒 Solo administrador', false);
+  const inm = inmuebles.find(i=>i.id===id);
+  const nombre = inm ? inm.nombre : 'este inmueble';
+  if(!confirm(`¿Eliminar "${nombre}"?\n\nSe borrarán también todos sus gastos, reformas, cobros, incidencias y contratos asociados.\n\nEsta acción NO se puede deshacer.`)) return;
+  if(!confirm('Confirmación final: esto es definitivo. ¿Eliminar de todas formas?')) return;
+
+  try{
+    // Primero se borran los registros asociados, para no dejar nada huérfano
+    await Promise.all([
+      db.from('gastos').delete().eq('inmueble_id', id),
+      db.from('reformas').delete().eq('inmueble_id', id),
+      db.from('cobros').delete().eq('inmueble_id', id),
+      db.from('incidencias').delete().eq('inmueble_id', id),
+      db.from('contratos').delete().eq('inmueble_id', id),
+    ]);
+    const {error} = await db.from('inmuebles').delete().eq('id', id);
+    if(error){ toast('Error al eliminar: '+error.message, false); return; }
+
+    toast('🗑 Inmueble eliminado');
+    closeModal();
+    document.getElementById('det-sel').value = '';
+    await Promise.all([loadInm(), loadGas(), loadRef(), loadCob(), loadInc(), loadCon()]);
+    renderAll();
+    renderDetalle();
+    showTab('cartera');
+  } catch(e){
+    toast('Error al eliminar: '+e.message, false);
+  }
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // START
 // ═════════════════════════════════════════════════════════════════════════════
 // La app solo se carga tras login. Por defecto mostramos la pantalla de login.
 document.addEventListener('DOMContentLoaded', () => {
+  renderFaceIdUI();
   document.getElementById('login-pwd').focus();
 });
 </script>
@@ -2270,6 +2597,17 @@ ALTER TABLE app_config DISABLE ROW LEVEL SECURITY;
 -- Admin: admin1234
 -- Consultor: consultor1234
 -- IMPORTANTE: cámbialas inmediatamente desde la pestaña ⚙️ Ajustes tras el primer login.
+
+-- 8. CONDICIONES DEL PRÉSTAMO — cálculo automático de interés/amortización (NUEVO)
+ALTER TABLE inmuebles
+  ADD COLUMN IF NOT EXISTS prestamo_capital NUMERIC,
+  ADD COLUMN IF NOT EXISTS prestamo_tipo_interes NUMERIC,
+  ADD COLUMN IF NOT EXISTS prestamo_plazo_meses INTEGER,
+  ADD COLUMN IF NOT EXISTS prestamo_fecha_inicio DATE,
+  ADD COLUMN IF NOT EXISTS prestamo_solo_intereses BOOLEAN DEFAULT false;
+-- Estos campos son opcionales: si no se rellenan, la app sigue usando el
+-- campo manual "interés/mes" de siempre. No hace falta tocar los datos
+-- existentes — todo lo ya guardado se mantiene igual.
 
 ═══════════════════════════════════════════════════════════════════════════════
 -->
