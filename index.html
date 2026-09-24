@@ -451,6 +451,19 @@ body.consultor .btn-ai{pointer-events:none;opacity:.4;}
       </div>
     </div>
 
+    <div class="card admin-only">
+      <div class="ct">📈 Histórico de Euríbor</div>
+      <div style="font-size:12px;color:var(--gray2);line-height:1.6;margin-bottom:12px">
+        Añade aquí el valor publicado del Euríbor cada vez que cambie (una vez al año en tus hipotecas, o cada mes si tienes alguna cuenta de crédito con revisión mensual). La app usa siempre el último valor guardado hasta la fecha de cada revisión para calcular el interés de tus préstamos variables o mixtos.
+      </div>
+      <div class="g2">
+        <div class="field"><label>Fecha</label><input type="date" id="eur-fecha"></div>
+        <div class="field"><label>Valor (%)</label><input type="number" step="0.001" id="eur-valor" placeholder="Ej: 3.652"></div>
+      </div>
+      <button class="btn-p" onclick="addEuribor()">+ Añadir valor</button>
+      <div id="euribor-lista" style="margin-top:14px"></div>
+    </div>
+
     <div class="card">
       <div class="ct">⏱ Sesión actual</div>
       <div class="srow"><span class="sl">Rol activo</span><strong id="aj-rol" style="color:var(--gold)">—</strong></div>
@@ -484,7 +497,7 @@ const db = createClient(SUPA_URL, SUPA_KEY);
 // ═════════════════════════════════════════════════════════════════════════════
 // STATE
 // ═════════════════════════════════════════════════════════════════════════════
-let inmuebles=[], gastos=[], reformas=[], cobros=[], incidencias=[], contratos=[];
+let inmuebles=[], gastos=[], reformas=[], cobros=[], incidencias=[], contratos=[], euribor=[];
 let filtro='Todos';
 let charts = {};
 
@@ -663,6 +676,44 @@ function updateSessionInfo(){
   const secs = Math.max(0, Math.floor((restante%60000)/1000));
   document.getElementById('aj-cierre').textContent = `${mins}m ${secs}s`;
   renderFaceIdSettings();
+  renderEuriborLista();
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// HISTÓRICO DE EURÍBOR ─────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+function renderEuriborLista(){
+  const el = document.getElementById('euribor-lista');
+  if(!el) return;
+  if(!euribor.length){ el.innerHTML = '<div class="empty">Sin valores guardados todavía</div>'; return; }
+  el.innerHTML = [...euribor].sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(e=>`
+    <div class="srow"><span class="sl">${fmtDate(e.fecha)}</span><span><strong style="color:var(--gold)">${parseFloat(e.valor).toFixed(3)}%</strong> ${isAdmin()?`<button class="btn-d" style="margin-left:8px;padding:3px 8px" onclick="delEuribor(${e.id})">🗑</button>`:''}</span></div>
+  `).join('');
+}
+
+async function addEuribor(){
+  if(!isAdmin()) return toast('🔒 Solo administrador', false);
+  const fecha = document.getElementById('eur-fecha').value;
+  const valor = parseFloat(document.getElementById('eur-valor').value);
+  if(!fecha || isNaN(valor)){ toast('Introduce fecha y valor', false); return; }
+  const {error} = await db.from('euribor').insert({fecha, valor});
+  if(error){ toast('Error: '+error.message, false); return; }
+  toast('✅ Valor de Euríbor añadido');
+  document.getElementById('eur-fecha').value = '';
+  document.getElementById('eur-valor').value = '';
+  await loadEuribor();
+  renderEuriborLista();
+  renderAll(); // puede cambiar el interés de préstamos variables/mixtos
+}
+
+async function delEuribor(id){
+  if(!isAdmin()) return toast('🔒 Solo administrador', false);
+  if(!confirm('¿Eliminar este valor de Euríbor?')) return;
+  await db.from('euribor').delete().eq('id', id);
+  toast('🗑 Valor eliminado');
+  await loadEuribor();
+  renderEuriborLista();
+  renderAll();
 }
 
 async function savePasswords(){
@@ -899,7 +950,7 @@ function showBucketError(bucket){
 // INIT
 // ═════════════════════════════════════════════════════════════════════════════
 async function initApp() {
-  await Promise.all([loadInm(), loadGas(), loadRef(), loadCob(), loadInc(), loadCon()]);
+  await Promise.all([loadInm(), loadGas(), loadRef(), loadCob(), loadInc(), loadCon(), loadEuribor()]);
   renderAll();
   initFiscalYears();
   checkSetup();
@@ -915,6 +966,7 @@ async function loadRef() { const {data}=await db.from('reformas').select('*').or
 async function loadCob() { const {data}=await db.from('cobros').select('*').order('fecha',{ascending:false}); if(data) cobros=data; }
 async function loadInc() { const {data}=await db.from('incidencias').select('*').order('fecha',{ascending:false}); if(data) incidencias=data; }
 async function loadCon() { const {data}=await db.from('contratos').select('*').order('fecha_inicio',{ascending:false}); if(data) contratos=data; }
+async function loadEuribor() { const {data}=await db.from('euribor').select('*').order('fecha',{ascending:true}); if(data) euribor=data; }
 
 async function seedInm() {
   const rows=[
@@ -958,7 +1010,7 @@ function renderAll() {
 function updateHeader() {
   const act = inmuebles.filter(i=>i.estado!=='Vendido');
   const v = act.reduce((s,i)=>s+(i.valor||0),0);
-  const d = inmuebles.reduce((s,i)=>s+(i.deuda||0),0);
+  const d = inmuebles.reduce((s,i)=>s+deudaActual(i),0);
   const alq = inmuebles.filter(i=>i.estado==='Alquilado');
   const ingresos = calcularIngresosMensuales();
   const rentables = act.filter(i=>i.tipo!=='Vivienda Habitual' && i.tipo!=='Garaje' && i.tipo!=='Trastero');
@@ -999,55 +1051,110 @@ function calcularIngresosMensuales() {
 // ═════════════════════════════════════════════════════════════════════════════
 // AMORTIZACIÓN DE PRÉSTAMOS (sistema francés, el estándar en hipotecas en España)
 // ═════════════════════════════════════════════════════════════════════════════
-// A partir de las condiciones del préstamo (capital, interés, plazo, fecha de
-// inicio) calcula cuánto de la cuota de ESTE mes es interés y cuánto es
-// amortización de capital, avanzando la amortización mes a mes desde el
-// inicio del préstamo. Si el inmueble no tiene condiciones completas, se usa
-// el campo manual "interés/mes" de siempre (o toda la cuota como interés si
-// tampoco hay interés manual, hipótesis conservadora — igual que antes).
-function calcularHipoteca(i){
+// A partir de las condiciones del préstamo calcula cuánto de la cuota de ESTE
+// mes es interés y cuánto es amortización de capital, simulando mes a mes
+// desde el inicio del préstamo. Soporta tipo fijo, variable (Euríbor +
+// diferencial) y mixto (años a tipo fijo y luego variable), recalculando la
+// cuota cada vez que toca una revisión. Si el inmueble no tiene condiciones
+// completas, se usa el campo manual "interés/mes" de siempre.
+function addMonths(d, n){ const r = new Date(d); r.setMonth(r.getMonth()+n); return r; }
+
+// Devuelve el valor de Euríbor aplicable en una fecha: el último valor publicado
+// en o antes de esa fecha (histórico guardado en Ajustes). Si no hay ninguno
+// anterior, usa el más antiguo disponible; si no hay ninguno guardado, 0.
+function euriborEnFecha(fecha){
+  if(!euribor || !euribor.length) return 0;
+  const f = fecha.toISOString().slice(0,10);
+  const ordenado = [...euribor].sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  const validos = ordenado.filter(e=>e.fecha<=f);
+  return parseFloat((validos.length ? validos[validos.length-1] : ordenado[0]).valor);
+}
+
+function calcularHipoteca(i, refDate){
+  refDate = refDate || new Date();
   const cuotaManual = i.cuota_hipoteca || 0;
-  const tieneCondiciones = i.prestamo_capital>0 && i.prestamo_tipo_interes!=null && i.prestamo_tipo_interes>=0 && i.prestamo_plazo_meses>0 && i.prestamo_fecha_inicio;
+  const tieneCondiciones = i.prestamo_capital>0 && i.prestamo_plazo_meses>0 && i.prestamo_fecha_inicio;
 
   if(!tieneCondiciones){
     const interes = i.interes_hipoteca != null ? i.interes_hipoteca : cuotaManual;
-    return { cuota: cuotaManual, interes, amortizacion: Math.max(0, cuotaManual-interes), origen:'manual', esCredito:false, vencimiento:null, diasVencimiento:null, capitalPendiente:null };
+    return { cuota: cuotaManual, interes, amortizacion: Math.max(0, cuotaManual-interes), origen:'manual', esCredito:false, vencimiento:null, diasVencimiento:null, capitalPendiente:null, tasaActual:null };
   }
 
   const capital = parseFloat(i.prestamo_capital);
-  const rMensual = parseFloat(i.prestamo_tipo_interes)/100/12;
   const plazo = parseInt(i.prestamo_plazo_meses);
   const inicio = new Date(i.prestamo_fecha_inicio);
-  const hoy = new Date();
+  const tipoTasa = i.prestamo_tipo_tasa || 'fijo'; // 'fijo' | 'variable' | 'mixto'
+  const tasaFija = parseFloat(i.prestamo_tipo_interes)||0; // tipo fijo (o tramo fijo inicial en mixtas)
+  const diferencial = parseFloat(i.prestamo_diferencial)||0;
+  const anosFijos = parseInt(i.prestamo_anos_fijos)||0;
+  const revisionMeses = parseInt(i.prestamo_revision_meses)||12;
+  const periodoPago = parseInt(i.prestamo_periodo_pago_meses)||1;
+  const esCredito = !!i.prestamo_solo_intereses;
 
-  // Fecha en la que finaliza el préstamo/cuenta de crédito
-  const vencimiento = new Date(inicio.getFullYear(), inicio.getMonth()+plazo, inicio.getDate());
-  const diasVencimiento = Math.ceil((vencimiento-hoy)/86400000);
+  const vencimiento = addMonths(inicio, plazo);
+  const diasVencimiento = Math.ceil((vencimiento-refDate)/86400000);
+
+  // Tipo de interés anual (%) aplicable en el mes "m" desde el inicio del préstamo
+  function tasaEnMes(m){
+    if(tipoTasa==='fijo') return tasaFija;
+    if(tipoTasa==='variable'){
+      const periodo = Math.floor(m/revisionMeses);
+      return euriborEnFecha(addMonths(inicio, periodo*revisionMeses)) + diferencial;
+    }
+    // mixto: fijo los primeros "anosFijos" años, variable después
+    if(m < anosFijos*12) return tasaFija;
+    const mVar = m - anosFijos*12;
+    const periodo = Math.floor(mVar/revisionMeses);
+    return euriborEnFecha(addMonths(inicio, anosFijos*12 + periodo*revisionMeses)) + diferencial;
+  }
+  // ¿Toca revisar (recalcular) la cuota en el mes "m"?
+  function esRevision(m){
+    if(m===0) return true;
+    if(tipoTasa==='fijo') return false;
+    if(tipoTasa==='variable') return m % revisionMeses === 0;
+    if(m===anosFijos*12) return true;
+    if(m>anosFijos*12) return (m-anosFijos*12) % revisionMeses === 0;
+    return false;
+  }
+
+  let meses = (refDate.getFullYear()-inicio.getFullYear())*12 + (refDate.getMonth()-inicio.getMonth());
+  meses = Math.min(Math.max(meses,0), Math.max(plazo-1,0));
 
   // Cuenta de crédito / solo intereses: no amortiza capital mes a mes.
   // Al llegar la fecha de vencimiento hay que devolver el capital ÍNTEGRO de golpe.
-  if(i.prestamo_solo_intereses){
-    const interes = capital*rMensual;
-    return { cuota: interes, interes, amortizacion: 0, origen:'prestamo', esCredito:true, vencimiento, diasVencimiento, capitalPendiente: capital };
+  if(esCredito){
+    const tasaActual = tasaEnMes(meses);
+    const interes = capital*(tasaActual/100/12);
+    return { cuota: interes, interes, amortizacion: 0, origen:'prestamo', esCredito:true, vencimiento, diasVencimiento, capitalPendiente: capital, tasaActual, periodoPago };
   }
 
-  // Cuota fija mensual (sistema francés) — préstamo/hipoteca normal, que sí amortiza capital
-  const cuota = rMensual>0
-    ? capital*(rMensual*Math.pow(1+rMensual,plazo))/(Math.pow(1+rMensual,plazo)-1)
-    : capital/plazo;
-
-  // Meses transcurridos desde el inicio del préstamo hasta hoy
-  let meses = (hoy.getFullYear()-inicio.getFullYear())*12 + (hoy.getMonth()-inicio.getMonth());
-  meses = Math.min(Math.max(meses,0), Math.max(plazo-1,0));
-
-  // Avanzar el saldo pendiente mes a mes hasta llegar al mes actual
-  let saldo = capital;
-  for(let m=0;m<meses;m++){
-    const interesMes = saldo*rMensual;
-    saldo = Math.max(0, saldo - (cuota-interesMes));
+  // Préstamo/hipoteca normal: simular mes a mes, recalculando la cuota (sistema
+  // francés) cada vez que toca una revisión de tipo, con el saldo y plazo
+  // restantes en ese momento.
+  let saldo = capital, cuota = 0, rMensualActual = 0, tasaActual = tasaFija;
+  for(let m=0; m<=meses; m++){
+    if(esRevision(m)){
+      tasaActual = tasaEnMes(m);
+      rMensualActual = tasaActual/100/12;
+      const mesesRestantes = plazo - m;
+      cuota = rMensualActual>0
+        ? saldo*(rMensualActual*Math.pow(1+rMensualActual,mesesRestantes))/(Math.pow(1+rMensualActual,mesesRestantes)-1)
+        : saldo/mesesRestantes;
+    }
+    if(m < meses){
+      const interesMes = saldo*rMensualActual;
+      saldo = Math.max(0, saldo - (cuota-interesMes));
+    }
   }
-  const interes = saldo*rMensual;
-  return { cuota, interes, amortizacion: Math.max(0, cuota-interes), origen:'prestamo', esCredito:false, vencimiento, diasVencimiento, capitalPendiente: saldo };
+  const interes = saldo*rMensualActual;
+  return { cuota, interes, amortizacion: Math.max(0, cuota-interes), origen:'prestamo', esCredito:false, vencimiento, diasVencimiento, capitalPendiente: saldo, tasaActual };
+}
+
+// Deuda actual: si hay condiciones de préstamo, el capital pendiente calculado
+// (baja mes a mes); si no, el campo manual "Deuda hipotecaria" de siempre.
+function deudaActual(i){
+  const hip = calcularHipoteca(i);
+  return hip.capitalPendiente != null ? hip.capitalPendiente : (i.deuda||0);
 }
 
 function calcularCashflowMensual() {
@@ -1155,7 +1262,7 @@ function renderInmCard(i) {
     ${i.tipo_alquiler?`<div style="margin-top:6px"><span class="badge b-tipo">${labelTA(i.tipo_alquiler)}</span></div>`:''}
     <div class="inm-metrics">
       <div class="inm-metric"><div class="inm-metric-label">Valor</div><div class="inm-metric-value" style="color:var(--gold)">${EUR(i.valor)}</div></div>
-      <div class="inm-metric"><div class="inm-metric-label">Deuda</div><div class="inm-metric-value" style="color:${i.deuda?'var(--red)':'var(--gray)'}">${i.deuda?EUR(i.deuda):'—'}</div></div>
+      <div class="inm-metric"><div class="inm-metric-label">Deuda</div><div class="inm-metric-value" style="color:${deudaActual(i)?'var(--red)':'var(--gray)'}">${deudaActual(i)?EUR(deudaActual(i)):'—'}</div></div>
       <div class="inm-metric"><div class="inm-metric-label">Renta/mes</div><div class="inm-metric-value" style="color:var(--green)">${i.alquiler?EUR(i.alquiler):'—'}</div></div>
       <div class="inm-metric"><div class="inm-metric-label">Rent.</div><div class="inm-metric-value" style="color:var(--amber)">${rent}</div></div>
     </div>
@@ -1241,6 +1348,7 @@ function renderDetalle(){
   }
 
   const alertaCredito = hip.esCredito && hip.diasVencimiento!=null && hip.diasVencimiento<=180;
+  const deudaAct = hip.capitalPendiente!=null ? hip.capitalPendiente : (inm.deuda||0);
 
   el.innerHTML=`
     ${alertaContrato?`<div class="contrato-alert"><div class="ca-icon">⚠️</div><div class="ca-content"><div class="ca-title">Contrato finaliza en ${diasContrato} días</div><div class="ca-sub">${fmtDate(inm.fecha_fin_contrato)} · Revisa renovación o nuevo inquilino</div></div></div>`:''}
@@ -1296,12 +1404,13 @@ function renderDetalle(){
         ['Gastos adq.+reforma',EUR(gInv+rCost),'var(--amber)'],
         ['Inversión total',EUR(inversion),'var(--gold)'],
         ['Valor actual',EUR(inm.valor),'var(--green)'],
-        ['Deuda hipotecaria',EUR(inm.deuda),'var(--red)'],
+        ['Deuda hipotecaria',EUR(deudaAct)+(hip.origen==='prestamo'&&!hip.esCredito?' 📉':''),'var(--red)'],
+        ...(hip.tasaActual!=null?[['Tipo de interés actual',hip.tasaActual.toFixed(2)+'%','var(--amber)']]:[]),
         ['Cuota hipoteca/mes',EUR(cuotaMes),'var(--red)'],
         ['— Intereses/mes',EUR(interesMes),'var(--red)'],
         ['— Amortización/mes',EUR(amortMes),'var(--green)'],
         ...(hip.esCredito?[['🏦 Vence (capital íntegro)',fmtDate(hip.vencimiento)+' · '+EUR(hip.capitalPendiente),hip.diasVencimiento<=180?'var(--red)':'var(--amber)']]:[]),
-        ['Patrimonio neto',EUR((inm.valor||0)-(inm.deuda||0)),'var(--blue)'],
+        ['Patrimonio neto',EUR((inm.valor||0)-deudaAct),'var(--blue)'],
         ['Alquiler mensual',EUR(ingresoMes),'var(--purple)'],
         ['Gastos recurrentes/año',EUR(gRec),'var(--red)'],
         ['Rentabilidad bruta',rentBruta,'var(--amber)'],
@@ -1468,7 +1577,7 @@ function renderDashboard() {
   const alq = inmuebles.filter(i=>i.estado==='Alquilado');
   const cf = calcularCashflowMensual();
   const tV = act.reduce((s,i)=>s+(i.valor||0),0);
-  const tD = inmuebles.reduce((s,i)=>s+(i.deuda||0),0);
+  const tD = inmuebles.reduce((s,i)=>s+deudaActual(i),0);
 
   document.getElementById('dash-kpis').innerHTML = [
     ['Patrimonio neto', EUR(tV-tD), 'var(--gold)', `${act.length} activos`],
@@ -1808,18 +1917,29 @@ function loanTermsFieldsHTML(d){
   return `
     <div style="padding:10px;background:var(--bg3);border-radius:8px;margin-bottom:12px">
       <div style="font-size:10px;color:var(--gold2);letter-spacing:2px;text-transform:uppercase;font-weight:700;margin-bottom:8px">📐 Condiciones del préstamo (cálculo automático)</div>
-      <div style="font-size:10.5px;color:var(--gray2);margin-bottom:10px;line-height:1.5">Si rellenas esto, la app calcula sola cada mes cuánto de la cuota es interés y cuánto amortización, según cómo avanza el préstamo. Si lo dejas vacío, se usa el interés manual de arriba.</div>
+      <div style="font-size:10.5px;color:var(--gray2);margin-bottom:10px;line-height:1.5">Si rellenas esto, la app calcula sola cada mes cuánto de la cuota es interés y cuánto amortización (y hace bajar la deuda pendiente ella sola). Si lo dejas vacío, se usa el interés manual de arriba.</div>
       <div class="g2">
         ${ff('Capital inicial (€)',fi('fpcap',d.prestamo_capital,'number','Importe prestado'))}
-        ${ff('Interés anual (%)',fi('fptin',d.prestamo_tipo_interes,'number','Ej: 3.2'))}
         ${ff('Plazo (meses)',fi('fpplazo',d.prestamo_plazo_meses,'number','Ej: 300 = 25 años'))}
-        ${ff('Fecha de inicio',fi('fpfecha',d.prestamo_fecha_inicio,'date'))}
+        ${ff('Fecha de inicio (notaría)',fi('fpfecha',d.prestamo_fecha_inicio,'date'))}
+        ${ff('Tipo de tasa',fs('fptipotasa',d.prestamo_tipo_tasa||'fijo',['fijo','variable','mixto']))}
       </div>
+      <div class="g2">
+        ${ff('Tipo fijo (%)',fi('fptin',d.prestamo_tipo_interes,'number','Fija, o el tramo fijo si es mixta'))}
+        ${ff('Diferencial s/Euríbor (%)',fi('fpdif',d.prestamo_diferencial,'number','Ej: 0.70 — solo variable/mixta'))}
+      </div>
+      <div class="g2">
+        ${ff('Años a tipo fijo (mixta)',fi('fpanosfijos',d.prestamo_anos_fijos,'number','Ej: 5 — solo mixta'))}
+        ${ff('Revisión Euríbor cada (meses)',fi('fprevision',d.prestamo_revision_meses||12,'number','12 = anual · solo variable/mixta'))}
+      </div>
+      <div style="font-size:10px;color:var(--gray);margin-bottom:10px;line-height:1.5">Fija: solo hace falta "Tipo fijo". Variable: rellena "Diferencial" (el interés será Euríbor + diferencial, revisado cada X meses). Mixta: "Tipo fijo" para los primeros años y luego pasa a variable con el diferencial. El valor de Euríbor a usar en cada revisión se gestiona en ⚙️ Ajustes → Histórico de Euríbor.</div>
       <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--gray2);margin-top:6px;cursor:pointer">
         <input type="checkbox" id="fpsolo" ${d.prestamo_solo_intereses?'checked':''} style="width:16px;height:16px">
         Es cuenta de crédito (solo intereses, sin amortización de capital)
       </label>
-      <div style="font-size:10px;color:var(--gray);margin-top:6px;line-height:1.5">Si marcas esto: el "Plazo" es la duración de la cuenta de crédito. Durante ese tiempo solo se paga interés (el capital no baja) y, al llegar la fecha de vencimiento, hay que devolver el capital íntegro de una vez. La app te avisará en la pestaña Alertas según se acerque esa fecha.</div>
+      <div style="font-size:10px;color:var(--gray);margin-top:6px;margin-bottom:10px;line-height:1.5">Si marcas esto: el "Plazo" es la duración de la cuenta de crédito. Durante ese tiempo solo se paga interés (el capital no baja) y, al llegar la fecha de vencimiento, hay que devolver el capital íntegro de una vez. La app te avisará en la pestaña Alertas según se acerque esa fecha.</div>
+      ${ff('Pago de intereses cada (meses)',fs('fpperiodo',String(d.prestamo_periodo_pago_meses||1),['1','3']))}
+      <div style="font-size:10px;color:var(--gray);margin-top:2px;line-height:1.5">Solo para cuentas de crédito: 1 = se paga cada mes, 3 = se paga cada trimestre. La app siempre muestra el equivalente mensual en el cashflow, sea cual sea la periodicidad real de pago.</div>
     </div>`;
 }
 
@@ -1944,10 +2064,12 @@ function mFinanciero(d){
       <button class="btn-s" onclick="closeModal()">Cancelar</button>
       <button class="btn-p" onclick="saveFinanciero(${d.id})">💾 Guardar</button>
     </div>`;
-  ['fsub','fval','fdeu','falq','fcuota','finteres','fpcap','fptin','fpplazo','fpfecha'].forEach(id=>{
+  ['fsub','fval','fdeu','falq','fcuota','finteres','fpcap','fptin','fpplazo','fpfecha','fpdif','fpanosfijos','fprevision'].forEach(id=>{
     document.getElementById(id)?.addEventListener('input', updateRentPreview);
   });
-  document.getElementById('fpsolo')?.addEventListener('change', updateRentPreview);
+  ['fpsolo','fptipotasa','fpperiodo'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('change', updateRentPreview);
+  });
   updateRentPreview();
 }
 
@@ -1965,15 +2087,26 @@ function updateRentPreview(){
   const pplazo = parseInt(document.getElementById('fpplazo')?.value)||0;
   const pfecha = document.getElementById('fpfecha')?.value;
   const psolo = document.getElementById('fpsolo')?.checked||false;
+  const ptipotasa = document.getElementById('fptipotasa')?.value||'fijo';
+  const pdif = parseFloat(document.getElementById('fpdif')?.value)||0;
+  const panosfijos = parseInt(document.getElementById('fpanosfijos')?.value)||0;
+  const prevision = parseInt(document.getElementById('fprevision')?.value)||12;
+  const pperiodo = parseInt(document.getElementById('fpperiodo')?.value)||1;
 
-  let cuota, interes, origen, hipInfo=null;
-  if(pcap>0 && ptinRaw!=='' && ptinRaw!=null && pplazo>0 && pfecha){
-    const h = calcularHipoteca({prestamo_capital:pcap, prestamo_tipo_interes:parseFloat(ptinRaw), prestamo_plazo_meses:pplazo, prestamo_fecha_inicio:pfecha, prestamo_solo_intereses:psolo});
-    cuota = h.cuota; interes = h.interes; origen = 'prestamo'; hipInfo = h;
+  let cuota, interes, origen, hipInfo=null, deudaCalc=null;
+  if(pcap>0 && pplazo>0 && pfecha){
+    const h = calcularHipoteca({
+      prestamo_capital:pcap, prestamo_tipo_interes: ptinRaw!==''&&ptinRaw!=null?parseFloat(ptinRaw):null,
+      prestamo_plazo_meses:pplazo, prestamo_fecha_inicio:pfecha, prestamo_solo_intereses:psolo,
+      prestamo_tipo_tasa:ptipotasa, prestamo_diferencial:pdif, prestamo_anos_fijos:panosfijos,
+      prestamo_revision_meses:prevision, prestamo_periodo_pago_meses:pperiodo
+    });
+    cuota = h.cuota; interes = h.interes; origen = 'prestamo'; hipInfo = h; deudaCalc = h.capitalPendiente;
     // Reflejar el cálculo en los campos manuales, para que quede también ahí como referencia
-    const cuotaField=document.getElementById('fcuota'), interesField=document.getElementById('finteres');
+    const cuotaField=document.getElementById('fcuota'), interesField=document.getElementById('finteres'), deudaField=document.getElementById('fdeu');
     if(cuotaField) cuotaField.value = cuota.toFixed(2);
     if(interesField) interesField.value = interes.toFixed(2);
+    if(deudaField && deudaCalc!=null) deudaField.value = deudaCalc.toFixed(2);
   } else {
     cuota = cuotaManual;
     interes = interesRaw!=='' && interesRaw!=null ? parseFloat(interesRaw)||0 : cuota;
@@ -1983,17 +2116,18 @@ function updateRentPreview(){
   const base=sub||val;
   const el=document.getElementById('rent-preview');
   if(!el) return;
+  const deuActual = deudaCalc!=null ? deudaCalc : deu;
   if(alq&&base){
     const rentB=(alq*12/base*100).toFixed(1);
     const rentN=((alq*12-interes*12)/base*100).toFixed(1);
-    const neto=val-deu;
+    const neto=val-deuActual;
     const cfReal=alq-cuota;
     const cfPat=alq-interes;
     el.innerHTML=`
       Rent. bruta: <strong style="color:var(--amber);font-size:16px">${rentB}%</strong> · Neta: <strong style="color:var(--green);font-size:16px">${rentN}%</strong><br>
       <span style="color:var(--blue);font-size:12px">Patrimonio neto: ${EUR(neto)}</span><br>
       <span style="color:${cfReal>=0?'var(--green)':'var(--red)'};font-size:12px">Cashflow real: ${EUR(cfReal)}/mes</span>
-      ${cuota>0?`<br><span style="color:${cfPat>=0?'var(--green)':'var(--red)'};font-size:12px">Cashflow patrimonial: ${EUR(cfPat)}/mes</span><br><span style="color:var(--gray);font-size:11px">↳ Amort: ${EUR(amort)} · Interés: ${EUR(interes)}${origen==='prestamo'?' · calculado del préstamo':''}</span>`:''}
+      ${cuota>0?`<br><span style="color:${cfPat>=0?'var(--green)':'var(--red)'};font-size:12px">Cashflow patrimonial: ${EUR(cfPat)}/mes</span><br><span style="color:var(--gray);font-size:11px">↳ Amort: ${EUR(amort)} · Interés: ${EUR(interes)}${hipInfo&&hipInfo.tasaActual!=null?` · tipo actual ${hipInfo.tasaActual.toFixed(2)}%`:''}${origen==='prestamo'?' · calculado del préstamo':''}</span>`:''}
       ${hipInfo&&hipInfo.esCredito?`<br><span style="color:${hipInfo.diasVencimiento<=180?'var(--red)':'var(--amber)'};font-size:11px">⚠️ Cuenta de crédito: al vencer (${fmtDate(hipInfo.vencimiento)}) hay que amortizar el capital íntegro de ${EUR(hipInfo.capitalPendiente)}</span>`:''}
     `;
   } else {
@@ -2202,6 +2336,11 @@ async function saveInm(id){
     prestamo_plazo_meses:parseInt(document.getElementById('fpplazo')?.value)||null,
     prestamo_fecha_inicio:document.getElementById('fpfecha')?.value||null,
     prestamo_solo_intereses:document.getElementById('fpsolo')?.checked||false,
+    prestamo_tipo_tasa:document.getElementById('fptipotasa')?.value||'fijo',
+    prestamo_diferencial:parseFloat(document.getElementById('fpdif')?.value)||null,
+    prestamo_anos_fijos:parseInt(document.getElementById('fpanosfijos')?.value)||null,
+    prestamo_revision_meses:parseInt(document.getElementById('fprevision')?.value)||12,
+    prestamo_periodo_pago_meses:parseInt(document.getElementById('fpperiodo')?.value)||1,
     num_habitaciones:parseInt(document.getElementById('fnhab').value)||null,
     habitaciones_ocupadas:parseInt(document.getElementById('fhabocu').value)||null,
     precio_habitacion:parseFloat(document.getElementById('fprecio_h').value)||null,
@@ -2233,6 +2372,11 @@ async function saveFinanciero(id){
     prestamo_plazo_meses: parseInt(document.getElementById('fpplazo')?.value)||null,
     prestamo_fecha_inicio: document.getElementById('fpfecha')?.value||null,
     prestamo_solo_intereses: document.getElementById('fpsolo')?.checked||false,
+    prestamo_tipo_tasa: document.getElementById('fptipotasa')?.value||'fijo',
+    prestamo_diferencial: parseFloat(document.getElementById('fpdif')?.value)||null,
+    prestamo_anos_fijos: parseInt(document.getElementById('fpanosfijos')?.value)||null,
+    prestamo_revision_meses: parseInt(document.getElementById('fprevision')?.value)||12,
+    prestamo_periodo_pago_meses: parseInt(document.getElementById('fpperiodo')?.value)||1,
   };
   const {error}=await db.from('inmuebles').update(row).eq('id',id);
   if(error){ toast('Error: '+error.message,false); return; }
@@ -2608,6 +2752,25 @@ ALTER TABLE inmuebles
 -- Estos campos son opcionales: si no se rellenan, la app sigue usando el
 -- campo manual "interés/mes" de siempre. No hace falta tocar los datos
 -- existentes — todo lo ya guardado se mantiene igual.
+
+-- 9. TIPO FIJO / VARIABLE / MIXTO + PERIODICIDAD DE CUENTAS DE CRÉDITO (NUEVO)
+ALTER TABLE inmuebles
+  ADD COLUMN IF NOT EXISTS prestamo_tipo_tasa TEXT DEFAULT 'fijo',
+  ADD COLUMN IF NOT EXISTS prestamo_diferencial NUMERIC,
+  ADD COLUMN IF NOT EXISTS prestamo_anos_fijos INTEGER,
+  ADD COLUMN IF NOT EXISTS prestamo_revision_meses INTEGER DEFAULT 12,
+  ADD COLUMN IF NOT EXISTS prestamo_periodo_pago_meses INTEGER DEFAULT 1;
+-- prestamo_tipo_tasa: 'fijo' | 'variable' | 'mixto'. Por defecto 'fijo', así que
+-- todo lo que ya tenías configurado sigue funcionando exactamente igual.
+
+-- 10. HISTÓRICO DE EURÍBOR (NUEVO) — tabla compartida por toda la cartera
+CREATE TABLE IF NOT EXISTS euribor (
+  id BIGSERIAL PRIMARY KEY,
+  fecha DATE NOT NULL,
+  valor NUMERIC NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE euribor DISABLE ROW LEVEL SECURITY;
 
 ═══════════════════════════════════════════════════════════════════════════════
 -->
