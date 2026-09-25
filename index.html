@@ -758,6 +758,11 @@ async function savePasswords(){
 
 const isAdmin = () => currentRole === 'admin';
 
+// Base de inversión para calcular rentabilidades: siempre la cifra real
+// (precio de compra/subasta), para admin y consultor por igual — lo único
+// que se oculta al consultor es la propia cifra de "Precio subasta".
+const baseInversion = (i) => (i.subasta||i.valor||0);
+
 // ═════════════════════════════════════════════════════════════════════════════
 // FACE ID / TOUCH ID (WebAuthn local, sin servidor) ───────────────────────────
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1316,7 +1321,8 @@ function renderListaInm() {
 }
 
 function renderInmCard(i) {
-  const rent = i.alquiler && (i.subasta||i.valor) ? ((i.alquiler*12/(i.subasta||i.valor))*100).toFixed(1)+'%' : '—';
+  const rentBase = baseInversion(i);
+  const rent = i.alquiler && rentBase ? ((i.alquiler*12/rentBase)*100).toFixed(1)+'%' : '—';
   const dias = daysUntil(i.fecha_fin_contrato);
   const alertaContrato = dias!=null && dias>0 && dias<=90;
 
@@ -1372,7 +1378,7 @@ function renderDetalle(){
   const gInv = gasInm.filter(g=>CATS_INV.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
   const gRec = gasInm.filter(g=>CATS_REC.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
   const rCost = refInm.reduce((s,r)=>s+(parseFloat(r.coste_real||r.presupuesto)||0),0);
-  const inversion = (inm.subasta||inm.valor||0) + gInv + rCost;
+  const inversion = baseInversion(inm) + gInv + rCost;
 
   // Ingresos mensuales efectivos según tipo
   let ingresoMes = inm.alquiler || 0;
@@ -1467,7 +1473,7 @@ function renderDetalle(){
     <div class="card">
       <div class="sh"><div class="ct" style="margin-bottom:0">Financiero</div><button class="btn-sm" onclick="openModal('financiero',${JSON.stringify(inm).replace(/"/g,'&quot;')})">✏️ Editar</button></div>
       ${[
-        ['Precio subasta',EUR(inm.subasta),'var(--gold)'],
+        ...(isAdmin()?[['Precio subasta',EUR(inm.subasta),'var(--gold)']]:[]),
         ['Gastos adq.+reforma',EUR(gInv+rCost),'var(--amber)'],
         ['Inversión total',EUR(inversion),'var(--gold)'],
         ['Valor actual',EUR(inm.valor),'var(--green)'],
@@ -1774,7 +1780,7 @@ function renderCharts() {
     const gInv = gastos.filter(g=>g.inmueble_id===i.id && CATS_INV.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
     const gRec = gastos.filter(g=>g.inmueble_id===i.id && CATS_REC.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
     const rCost = reformas.filter(r=>r.inmueble_id===i.id).reduce((s,r)=>s+(parseFloat(r.coste_real||r.presupuesto)||0),0);
-    const inv = (i.subasta||i.valor||0)+gInv+rCost;
+    const inv = baseInversion(i)+gInv+rCost;
     const intAnual = calcularHipoteca(i).interes * 12;
     rentPorCiudad[i.ciudad].ing += i.alquiler*12 - gRec - intAnual;
     rentPorCiudad[i.ciudad].inv += inv;
@@ -1804,7 +1810,7 @@ function renderCharts() {
     const gInv = gastos.filter(g=>g.inmueble_id===i.id && CATS_INV.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
     const gRec = gastos.filter(g=>g.inmueble_id===i.id && CATS_REC.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
     const rCost = reformas.filter(r=>r.inmueble_id===i.id).reduce((s,r)=>s+(parseFloat(r.coste_real||r.presupuesto)||0),0);
-    const inv = (i.subasta||i.valor||0)+gInv+rCost;
+    const inv = baseInversion(i)+gInv+rCost;
     // Solo intereses restan a rentabilidad. Si no hay condiciones de préstamo ni interés
     // manual informado, se asume que toda la cuota es interés (peor caso, más conservador)
     const intAnual = calcularHipoteca(i).interes * 12;
