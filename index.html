@@ -36,6 +36,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .h-stat{background:rgba(255,255,255,.02);border:1px solid var(--border);border-radius:10px;padding:10px 12px;}
 .h-stat-label{font-size:8.5px;letter-spacing:1.8px;color:var(--gray);text-transform:uppercase;font-weight:600;margin-bottom:4px;}
 .h-stat-val{font-size:15px;font-weight:700;letter-spacing:-.3px;}
+#hNet{font-size:19px;}
 .h-stat-sub{font-size:9px;color:var(--gray2);margin-top:2px;}
 
 /* ── NAV ── */
@@ -67,6 +68,11 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .kpi .kl{font-size:9px;color:var(--gray);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;font-weight:600;}
 .kpi .kv{font-size:20px;font-weight:700;letter-spacing:-.5px;}
 .kpi .ks{font-size:10px;color:var(--gray2);margin-top:3px;}
+.kpi.kpi-sm{padding:9px 10px;}
+.kpi.kpi-sm .kl{font-size:8px;margin-bottom:3px;}
+.kpi.kpi-sm .kv{font-size:15px;}
+.kpi.kpi-sm .ks{font-size:9px;}
+.kpi.kpi-lg .kv{font-size:25px;}
 
 /* ── FILTROS ── */
 .filtros{display:flex;gap:8px;margin-bottom:14px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:2px 0;}
@@ -1195,11 +1201,12 @@ function renderKpis() {
   const cf = calcularCashflowMensual();
 
   document.getElementById('kpis').innerHTML = [
-    ['Activos', act.length, 'var(--gold)', `${libres.length} libres`],
-    ['Alquilados', alq.length, 'var(--green)', 'en renta'],
-    ['Valor cartera', EUR(act.reduce((s,i)=>s+(i.valor||0),0)), 'var(--gold)', 'valor de mercado'],
-    ['Cashflow/mes', EUR(cf.cashflow), cf.cashflow>=0?'var(--green)':'var(--red)', `ing. ${EUR(cf.ingresos)}`],
-  ].map(([l,v,c,s])=>`<div class="kpi" style="--accent:${c}"><div class="kl">${l}</div><div class="kv" style="color:${c}">${v}</div><div class="ks">${s}</div></div>`).join('');
+    ['Activos', act.length, 'var(--gold)', `${libres.length} libres`, 'kpi-sm'],
+    ['Alquilados', alq.length, 'var(--green)', 'en renta', 'kpi-sm'],
+    ['Valor cartera', EUR(act.reduce((s,i)=>s+(i.valor||0),0)), 'var(--gold)', 'valor de mercado', 'kpi-lg'],
+    ['Cashflow/mes', EUR(cf.cashflow), cf.cashflow>=0?'var(--green)':'var(--red)', `ing. ${EUR(cf.ingresos)}`, ''],
+    ['Cashflow patrim./mes', EUR(cf.cashflowPatrimonial), cf.cashflowPatrimonial>=0?'var(--green)':'var(--red)', `+ ${EUR(cf.amortizacion)} amort.`, ''],
+  ].map(([l,v,c,s,cls])=>`<div class="kpi ${cls||''}" style="--accent:${c}"><div class="kl">${l}</div><div class="kv" style="color:${c}">${v}</div><div class="ks">${s}</div></div>`).join('');
 }
 
 function renderFiltros() {
