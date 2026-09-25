@@ -506,7 +506,7 @@ const db = createClient(SUPA_URL, SUPA_KEY);
 // ═════════════════════════════════════════════════════════════════════════════
 // STATE
 // ═════════════════════════════════════════════════════════════════════════════
-let inmuebles=[], gastos=[], reformas=[], cobros=[], incidencias=[], contratos=[], euribor=[];
+let inmuebles=[], gastos=[], reformas=[], cobros=[], incidencias=[], contratos=[], euribor=[], saldosHipoteca=[];
 let filtro='Todos';
 let charts = {};
 
@@ -959,7 +959,7 @@ function showBucketError(bucket){
 // INIT
 // ═════════════════════════════════════════════════════════════════════════════
 async function initApp() {
-  await Promise.all([loadInm(), loadGas(), loadRef(), loadCob(), loadInc(), loadCon(), loadEuribor()]);
+  await Promise.all([loadInm(), loadGas(), loadRef(), loadCob(), loadInc(), loadCon(), loadEuribor(), loadSaldos()]);
   renderAll();
   initFiscalYears();
   checkSetup();
@@ -976,6 +976,7 @@ async function loadCob() { const {data}=await db.from('cobros').select('*').orde
 async function loadInc() { const {data}=await db.from('incidencias').select('*').order('fecha',{ascending:false}); if(data) incidencias=data; }
 async function loadCon() { const {data}=await db.from('contratos').select('*').order('fecha_inicio',{ascending:false}); if(data) contratos=data; }
 async function loadEuribor() { const {data}=await db.from('euribor').select('*').order('fecha',{ascending:true}); if(data) euribor=data; }
+async function loadSaldos() { const {data}=await db.from('saldos_hipoteca').select('*').order('fecha',{ascending:true}); if(data) saldosHipoteca=data; }
 
 async function seedInm() {
   const rows=[
@@ -1079,6 +1080,19 @@ function euriborEnFecha(fecha){
   return parseFloat((validos.length ? validos[validos.length-1] : ordenado[0]).valor);
 }
 
+// Euríbor real aplicado a UN inmueble concreto, si el usuario lo ha introducido
+// a mano en "📉 Saldo pendiente real" (el valor exacto de esa revisión, en vez
+// del histórico general). Devuelve null si no hay ninguno para ese inmueble
+// en o antes de la fecha dada, y entonces se usa el histórico general.
+function euriborAplicadoParaFecha(inmuebleId, fecha){
+  if(!saldosHipoteca || !saldosHipoteca.length) return null;
+  const f = fecha.toISOString().slice(0,10);
+  const validos = saldosHipoteca
+    .filter(s=>s.inmueble_id===inmuebleId && s.euribor_aplicado!=null && s.fecha && s.fecha<=f)
+    .sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  return validos.length ? parseFloat(validos[validos.length-1].euribor_aplicado) : null;
+}
+
 function calcularHipoteca(i, refDate){
   refDate = refDate || new Date();
   const cuotaManual = i.cuota_hipoteca || 0;
@@ -1103,18 +1117,25 @@ function calcularHipoteca(i, refDate){
   const vencimiento = addMonths(inicio, plazo);
   const diasVencimiento = Math.ceil((vencimiento-refDate)/86400000);
 
-  // Tipo de interés anual (%) aplicable en el mes "m" desde el inicio del préstamo
+  // Tipo de interés anual (%) aplicable en el mes "m" desde el inicio del préstamo.
+  // Si el usuario ha introducido el Euríbor real aplicado en esa revisión (por
+  // inmueble), se usa ese valor + el diferencial; si no, se recurre al
+  // histórico general de Euríbor guardado en Ajustes.
+  function euriborDeRevision(fechaRevision){
+    const real = euriborAplicadoParaFecha(i.id, fechaRevision);
+    return real!=null ? real : euriborEnFecha(fechaRevision);
+  }
   function tasaEnMes(m){
     if(tipoTasa==='fijo') return tasaFija;
     if(tipoTasa==='variable'){
       const periodo = Math.floor(m/revisionMeses);
-      return euriborEnFecha(addMonths(inicio, periodo*revisionMeses)) + diferencial;
+      return euriborDeRevision(addMonths(inicio, periodo*revisionMeses)) + diferencial;
     }
     // mixto: fijo los primeros "anosFijos" años, variable después
     if(m < anosFijos*12) return tasaFija;
     const mVar = m - anosFijos*12;
     const periodo = Math.floor(mVar/revisionMeses);
-    return euriborEnFecha(addMonths(inicio, anosFijos*12 + periodo*revisionMeses)) + diferencial;
+    return euriborDeRevision(addMonths(inicio, anosFijos*12 + periodo*revisionMeses)) + diferencial;
   }
   // ¿Toca revisar (recalcular) la cuota en el mes "m"?
   function esRevision(m){
@@ -1140,9 +1161,27 @@ function calcularHipoteca(i, refDate){
   // Préstamo/hipoteca normal: simular mes a mes, recalculando la cuota (sistema
   // francés) cada vez que toca una revisión de tipo, con el saldo y plazo
   // restantes en ese momento.
-  let saldo = capital, cuota = 0, rMensualActual = 0, tasaActual = tasaFija;
-  for(let m=0; m<=meses; m++){
-    if(esRevision(m)){
+  //
+  // Si el usuario ha introducido un "saldo pendiente real" (el que dice el
+  // banco) en alguna fecha, se usa como nuevo punto de partida de la
+  // simulación en vez de arrastrarla desde el origen del préstamo. Así se
+  // evita que pequeñas diferencias de redondeo se acumulen con los años.
+  const checkpoints = (saldosHipoteca||[])
+    .filter(s=>s.inmueble_id===i.id && s.fecha && s.capital_pendiente!=null && new Date(s.fecha)<=refDate)
+    .sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const checkpoint = checkpoints[0];
+
+  let saldo = capital, mIni = 0;
+  if(checkpoint){
+    saldo = parseFloat(checkpoint.capital_pendiente);
+    const fCheck = new Date(checkpoint.fecha);
+    mIni = (fCheck.getFullYear()-inicio.getFullYear())*12 + (fCheck.getMonth()-inicio.getMonth());
+    mIni = Math.min(Math.max(mIni,0), Math.max(plazo-1,0));
+  }
+
+  let cuota = 0, rMensualActual = 0, tasaActual = tasaFija;
+  for(let m=mIni; m<=meses; m++){
+    if(esRevision(m) || m===mIni){
       tasaActual = tasaEnMes(m);
       rMensualActual = tasaActual/100/12;
       const mesesRestantes = plazo - m;
@@ -1328,6 +1367,7 @@ function renderDetalle(){
   const refInm=reformas.filter(r=>r.inmueble_id===id);
   const incInm=incidencias.filter(x=>x.inmueble_id===id);
   const conInm=contratos.filter(x=>x.inmueble_id===id);
+  const salInm=saldosHipoteca.filter(x=>x.inmueble_id===id).sort((a,b)=>b.fecha.localeCompare(a.fecha));
 
   const gInv = gasInm.filter(g=>CATS_INV.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
   const gRec = gasInm.filter(g=>CATS_REC.includes(g.categoria)).reduce((s,g)=>s+(parseFloat(g.importe)||0),0);
@@ -1450,6 +1490,12 @@ function renderDetalle(){
       </div>
     </div>
 
+    ${(isAdmin() && hip.origen==='prestamo')?`<div class="card">
+      <div class="sh"><div class="st">📉 Revisión real (saldo / Euríbor)</div><button class="btn-sm" onclick="openModal('saldo',{inmueble_id:${id}, esCredito:${!!hip.esCredito}, variable:${(inm.prestamo_tipo_tasa||'fijo')!=='fijo'}})">+ Añadir</button></div>
+      <div style="font-size:10.5px;color:var(--gray2);margin-bottom:10px;line-height:1.5">Cuando el banco te comunique la revisión anual, introduce aquí lo que corresponda: el Euríbor exacto que te han aplicado ese año (la app le suma el diferencial de esta hipoteca automáticamente, en vez de usar el histórico general) y/o el capital pendiente real${hip.esCredito?'':', para que la deuda mostrada parta de ahí en vez de la simulación desde el inicio'}.</div>
+      ${renderSaldos(salInm, inm.prestamo_diferencial)}
+    </div>`:''}
+
     <div class="card">
       <div class="sh"><div class="st">👤 Inquilino actual</div>${isAdmin()?`<button class="btn-sm" onclick="openModal('inquilino',${JSON.stringify(inm).replace(/"/g,'&quot;')})">${inm.inquilino_nombre?'✏️ Editar':'+ Añadir'}</button>`:''}</div>
       ${inm.inquilino_nombre?`
@@ -1510,6 +1556,27 @@ function renderContratos(items){
         <button class="btn-d" onclick="delContrato(${c.id})">🗑</button>
       </div>
     </div>`).join('');
+}
+
+function renderSaldos(items, diferencial){
+  if(!items.length) return '<div class="empty">Sin datos introducidos todavía</div>';
+  const dif = parseFloat(diferencial)||0;
+  return items.map(s=>{
+    const tieneCap = s.capital_pendiente!=null;
+    const tieneEur = s.euribor_aplicado!=null;
+    return `
+    <div class="gitem">
+      <div class="gtop">
+        <span class="gcat">${fmtDate(s.fecha)}</span>
+      </div>
+      ${tieneCap?`<div class="gdesc" style="color:var(--gold);font-size:16px;font-weight:700">${EUR(s.capital_pendiente)} <span style="font-size:10px;color:var(--gray2);font-weight:400">capital pendiente</span></div>`:''}
+      ${tieneEur?`<div class="gdesc" style="color:var(--amber);font-size:14px;font-weight:700">Euríbor ${parseFloat(s.euribor_aplicado).toFixed(2)}% + ${dif.toFixed(2)} dif. = ${(parseFloat(s.euribor_aplicado)+dif).toFixed(2)}%</div>`:''}
+      <div class="gbot">
+        <span class="gfecha">${tieneCap && tieneEur ? 'Revisión completa' : tieneEur ? 'Solo tipo de interés' : 'Solo capital'}</span>
+        <button class="btn-d" onclick="delSaldo(${s.id})">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function renderGItems(items){
@@ -1792,6 +1859,30 @@ function fechaInicioContratoEfectiva(inm){
   return cs.length ? cs[0].fecha_inicio : null;
 }
 
+// Próxima fecha de revisión del tipo de interés (Euríbor) en una hipoteca
+// variable o mixta: en las mixtas, la primera revisión llega al terminar el
+// tramo fijo; a partir de ahí, cada "prestamo_revision_meses" (12 = anual).
+// Las cuentas de crédito no entran aquí: ya tienen su propia alerta de
+// vencimiento (al vencer se devuelve el capital íntegro).
+function proximaRevisionHipoteca(inm){
+  if(!(inm.prestamo_capital>0 && inm.prestamo_plazo_meses>0 && inm.prestamo_fecha_inicio)) return null;
+  if(inm.prestamo_solo_intereses) return null;
+  const tipoTasa = inm.prestamo_tipo_tasa || 'fijo';
+  if(tipoTasa==='fijo') return null;
+  const inicio = new Date(inm.prestamo_fecha_inicio);
+  if(isNaN(inicio)) return null;
+  const plazo = parseInt(inm.prestamo_plazo_meses);
+  const anosFijos = parseInt(inm.prestamo_anos_fijos)||0;
+  const revisionMeses = parseInt(inm.prestamo_revision_meses)||12;
+  const inicioVariable = tipoTasa==='mixto' ? addMonths(inicio, anosFijos*12) : inicio;
+  const vencimiento = addMonths(inicio, plazo);
+  const hoy = new Date();
+  let prox = new Date(inicioVariable);
+  while(prox < hoy){ prox = addMonths(prox, revisionMeses); }
+  if(prox > vencimiento) return null;
+  return prox;
+}
+
 function renderAlertas() {
   const alertas = [];
   inmuebles.forEach(i=>{
@@ -1811,6 +1902,14 @@ function renderAlertas() {
       const dIpc = revision ? Math.ceil((revision-new Date())/86400000) : null;
       if(dIpc!=null && dIpc>=0 && dIpc<=60){
         alertas.push({inm:i, dias:dIpc, tipo:'ipc', revision});
+      }
+    }
+    // Revisión del tipo de interés (Euríbor) en hipotecas variables o mixtas: avisar 2 meses (60 días) antes
+    const revisionHip = proximaRevisionHipoteca(i);
+    if(revisionHip){
+      const dHip = Math.ceil((revisionHip-new Date())/86400000);
+      if(dHip>=0 && dHip<=60){
+        alertas.push({inm:i, dias:dHip, tipo:'euribor', revision:revisionHip});
       }
     }
   });
@@ -1844,10 +1943,13 @@ function renderAlertas() {
         ? `⚠️ Cuenta de crédito: al vencer se amortiza el capital íntegro <strong style="color:${col}">${EUR(a.capital)}</strong> · vence el <strong style="color:${col}">${fmtDate(a.vencimiento)}</strong>`
         : a.tipo==='ipc'
         ? `📈 Revisión anual de IPC el <strong style="color:${col}">${fmtDate(a.revision)}</strong> · Renta actual ${EUR(a.inm.alquiler)}/mes`
+        : a.tipo==='euribor'
+        ? `📊 Revisión del tipo de interés (Euríbor) el <strong style="color:${col}">${fmtDate(a.revision)}</strong> · se recalculará la cuota de la hipoteca`
         : `Vence el <strong style="color:${col}">${fmtDate(a.inm.fecha_fin_contrato)}</strong> · Renta ${EUR(a.inm.alquiler)}/mes`;
+      const etiqueta = a.tipo==='credito'?' · 🏦 Cuenta de crédito':a.tipo==='ipc'?' · 📈 Revisión IPC':a.tipo==='euribor'?' · 📊 Revisión Euríbor':'';
       html += `<div class="inm-card" style="--estado-color:${col};margin-bottom:8px" onclick="goDetalle(${a.inm.id})">
         <div class="inm-header">
-          <div><div class="inm-n">${a.inm.nombre}${a.tipo==='credito'?' · 🏦 Cuenta de crédito':a.tipo==='ipc'?' · 📈 Revisión IPC':''}</div><div class="inm-d">${a.inm.ciudad} · ${a.inm.inquilino_nombre||'—'}</div></div>
+          <div><div class="inm-n">${a.inm.nombre}${etiqueta}</div><div class="inm-d">${a.inm.ciudad} · ${a.inm.inquilino_nombre||'—'}</div></div>
           <span class="badge b-alert">${badgeTxt}</span>
         </div>
         <div style="margin-top:8px;font-size:11.5px;color:var(--gray2)">${cuerpo}</div>
@@ -1964,7 +2066,7 @@ function openModal(type,data){
   if(!isAdmin()){ toast('🔒 Solo el administrador puede realizar esta acción', false); return; }
   document.getElementById('mov').classList.remove('hidden');
   const fns = {inmueble:mInm, gasto:mGasto, reforma:mReforma, cobro:mCobro, financiero:mFinanciero,
-               inquilino:mInquilino, contrato:mContrato, incidencia:mIncidencia};
+               inquilino:mInquilino, contrato:mContrato, incidencia:mIncidencia, saldo:mSaldo};
   if(fns[type]) fns[type](data);
 }
 function closeModal(){ document.getElementById('mov').classList.add('hidden'); }
@@ -2239,6 +2341,19 @@ function mContrato(d){
     <div class="btn-row">
       <button class="btn-s" onclick="closeModal()">Cancelar</button>
       <button class="btn-p" onclick="saveContrato(${d.inmueble_id})">💾 Subir contrato</button>
+    </div>`;
+}
+
+function mSaldo(d){
+  document.getElementById('mc').innerHTML=`
+    <div class="modal-title">📉 Nueva revisión real</div>
+    <div style="font-size:11px;color:var(--gray2);margin-bottom:14px">Rellena lo que te indique el banco en esa fecha. Puedes rellenar solo uno de los dos campos, o los dos.</div>
+    ${ff('Fecha',fi('fsfecha',d.fecha||new Date().toISOString().slice(0,10),'date'))}
+    ${!d.esCredito?ff('Capital pendiente (€)',fi('fscap',d.capital_pendiente,'number')):''}
+    ${d.variable?ff('Euríbor aplicado ese año (%)',fi('fseur',d.euribor_aplicado,'number'))+'<div style="font-size:10px;color:var(--gray2);margin-top:-8px;margin-bottom:12px">Solo el Euríbor, sin el diferencial — la app le suma automáticamente el diferencial de esta hipoteca.</div>':''}
+    <div class="btn-row">
+      <button class="btn-s" onclick="closeModal()">Cancelar</button>
+      <button class="btn-p" onclick="saveSaldo(${d.inmueble_id})">💾 Guardar</button>
     </div>`;
 }
 
@@ -2669,6 +2784,34 @@ async function delContrato(id){
   await loadCon(); renderDetalle();
 }
 
+async function saveSaldo(inmueble_id){
+  if(!isAdmin()) return toast('🔒 Solo administrador', false);
+  const fecha = document.getElementById('fsfecha').value;
+  const capRaw = document.getElementById('fscap')?.value;
+  const eurRaw = document.getElementById('fseur')?.value;
+  const capital = capRaw!=null && capRaw!=='' ? parseFloat(capRaw) : null;
+  const euribApl = eurRaw!=null && eurRaw!=='' ? parseFloat(eurRaw) : null;
+  if(!fecha || (capital==null && euribApl==null)){ toast('Rellena la fecha y al menos uno de los dos valores', false); return; }
+  const row = { inmueble_id: parseInt(inmueble_id), fecha, capital_pendiente: capital, euribor_aplicado: euribApl };
+  const {error} = await db.from('saldos_hipoteca').insert(row);
+  if(error){ toast('Error: '+error.message, false); return; }
+  toast('✅ Guardado');
+  closeModal();
+  await loadSaldos();
+  renderAll();
+  renderDetalle();
+}
+
+async function delSaldo(id){
+  if(!isAdmin()) return toast('🔒 Solo administrador', false);
+  if(!confirm('¿Eliminar este saldo?')) return;
+  await db.from('saldos_hipoteca').delete().eq('id', id);
+  toast('🗑 Saldo eliminado');
+  await loadSaldos();
+  renderAll();
+  renderDetalle();
+}
+
 async function delInm(id){
   if(!isAdmin()) return toast('🔒 Solo administrador', false);
   const inm = inmuebles.find(i=>i.id===id);
@@ -2684,6 +2827,7 @@ async function delInm(id){
       db.from('cobros').delete().eq('inmueble_id', id),
       db.from('incidencias').delete().eq('inmueble_id', id),
       db.from('contratos').delete().eq('inmueble_id', id),
+      db.from('saldos_hipoteca').delete().eq('inmueble_id', id),
     ]);
     const {error} = await db.from('inmuebles').delete().eq('id', id);
     if(error){ toast('Error al eliminar: '+error.message, false); return; }
@@ -2691,7 +2835,7 @@ async function delInm(id){
     toast('🗑 Inmueble eliminado');
     closeModal();
     document.getElementById('det-sel').value = '';
-    await Promise.all([loadInm(), loadGas(), loadRef(), loadCob(), loadInc(), loadCon()]);
+    await Promise.all([loadInm(), loadGas(), loadRef(), loadCob(), loadInc(), loadCon(), loadSaldos()]);
     renderAll();
     renderDetalle();
     showTab('cartera');
@@ -2832,6 +2976,25 @@ CREATE TABLE IF NOT EXISTS euribor (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE euribor DISABLE ROW LEVEL SECURITY;
+
+-- 11. SALDOS PENDIENTES REALES POR INMUEBLE (NUEVO) — "checkpoints" que el
+-- usuario introduce a mano (el capital pendiente que le diga el banco) para
+-- que el cálculo de la deuda parta de ahí en vez de arrastrar la simulación
+-- desde el inicio del préstamo.
+CREATE TABLE IF NOT EXISTS saldos_hipoteca (
+  id BIGSERIAL PRIMARY KEY,
+  inmueble_id BIGINT REFERENCES inmuebles(id) ON DELETE CASCADE,
+  fecha DATE NOT NULL,
+  capital_pendiente NUMERIC,
+  euribor_aplicado NUMERIC,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE saldos_hipoteca ADD COLUMN IF NOT EXISTS euribor_aplicado NUMERIC;
+ALTER TABLE saldos_hipoteca ALTER COLUMN capital_pendiente DROP NOT NULL;
+ALTER TABLE saldos_hipoteca DISABLE ROW LEVEL SECURITY;
+-- capital_pendiente y euribor_aplicado son ambos opcionales: cada registro
+-- puede llevar uno, otro, o los dos, según lo que el banco te haya dado en
+-- esa revisión.
 
 ═══════════════════════════════════════════════════════════════════════════════
 -->
