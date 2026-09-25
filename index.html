@@ -37,6 +37,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .h-stat-label{font-size:8.5px;letter-spacing:1.8px;color:var(--gray);text-transform:uppercase;font-weight:600;margin-bottom:4px;}
 .h-stat-val{font-size:15px;font-weight:700;letter-spacing:-.3px;}
 #hNet{font-size:19px;}
+#hIng{font-size:19px;}
 .h-stat-sub{font-size:9px;color:var(--gray2);margin-top:2px;}
 
 /* ── NAV ── */
@@ -68,11 +69,13 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .kpi .kl{font-size:9px;color:var(--gray);letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;font-weight:600;}
 .kpi .kv{font-size:20px;font-weight:700;letter-spacing:-.5px;}
 .kpi .ks{font-size:10px;color:var(--gray2);margin-top:3px;}
-.kpi.kpi-sm{padding:9px 10px;}
-.kpi.kpi-sm .kl{font-size:8px;margin-bottom:3px;}
-.kpi.kpi-sm .kv{font-size:15px;}
-.kpi.kpi-sm .ks{font-size:9px;}
 .kpi.kpi-lg .kv{font-size:25px;}
+.kpi.kpi-combo{display:flex;align-items:stretch;gap:8px;padding:12px 10px;}
+.kpi-combo-half{flex:1;display:flex;flex-direction:column;justify-content:center;min-width:0;}
+.kpi-combo-half .kl{font-size:8px;color:var(--gray);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;font-weight:600;}
+.kpi-combo-half .kv{font-size:17px;font-weight:700;letter-spacing:-.5px;}
+.kpi-combo-half .ks{font-size:9px;color:var(--gray2);margin-top:2px;}
+.kpi-combo-divider{width:1px;background:var(--border);align-self:stretch;}
 
 /* ── FILTROS ── */
 .filtros{display:flex;gap:8px;margin-bottom:14px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:2px 0;}
@@ -1200,13 +1203,27 @@ function renderKpis() {
   const libres = inmuebles.filter(i=>i.estado==='Libre');
   const cf = calcularCashflowMensual();
 
-  document.getElementById('kpis').innerHTML = [
-    ['Activos', act.length, 'var(--gold)', `${libres.length} libres`, 'kpi-sm'],
-    ['Alquilados', alq.length, 'var(--green)', 'en renta', 'kpi-sm'],
+  const combo = `<div class="kpi kpi-combo">
+    <div class="kpi-combo-half">
+      <div class="kl">Activos</div>
+      <div class="kv" style="color:var(--gold)">${act.length}</div>
+      <div class="ks">${libres.length} libres</div>
+    </div>
+    <div class="kpi-combo-divider"></div>
+    <div class="kpi-combo-half">
+      <div class="kl">Alquilados</div>
+      <div class="kv" style="color:var(--green)">${alq.length}</div>
+      <div class="ks">en renta</div>
+    </div>
+  </div>`;
+
+  const resto = [
     ['Valor cartera', EUR(act.reduce((s,i)=>s+(i.valor||0),0)), 'var(--gold)', 'valor de mercado', 'kpi-lg'],
-    ['Cashflow/mes', EUR(cf.cashflow), cf.cashflow>=0?'var(--green)':'var(--red)', `ing. ${EUR(cf.ingresos)}`, ''],
     ['Cashflow patrim./mes', EUR(cf.cashflowPatrimonial), cf.cashflowPatrimonial>=0?'var(--green)':'var(--red)', `+ ${EUR(cf.amortizacion)} amort.`, ''],
+    ['Cashflow/mes', EUR(cf.cashflow), cf.cashflow>=0?'var(--green)':'var(--red)', `ing. ${EUR(cf.ingresos)}`, ''],
   ].map(([l,v,c,s,cls])=>`<div class="kpi ${cls||''}" style="--accent:${c}"><div class="kl">${l}</div><div class="kv" style="color:${c}">${v}</div><div class="ks">${s}</div></div>`).join('');
+
+  document.getElementById('kpis').innerHTML = combo + resto;
 }
 
 function renderFiltros() {
