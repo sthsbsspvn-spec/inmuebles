@@ -26,8 +26,8 @@ body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--t
 body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at top,rgba(212,183,119,.04),transparent 50%),radial-gradient(ellipse at bottom,rgba(96,165,250,.03),transparent 50%);pointer-events:none;z-index:0;}
 
 /* ── HEADER ── */
-.header{position:sticky;top:0;z-index:100;background:linear-gradient(180deg,rgba(20,24,36,.95),rgba(15,19,32,.95));backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:14px 16px;}
-.h-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+.header{position:sticky;top:0;z-index:100;background:linear-gradient(180deg,rgba(20,24,36,.95),rgba(15,19,32,.95));backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:24px 16px 14px;}
+.h-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
 .h-brand{display:flex;flex-direction:column;}
 .h-sub{font-size:9px;letter-spacing:3.5px;color:var(--gold2);text-transform:uppercase;font-weight:600;}
 .h-title{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:var(--gold);letter-spacing:-.5px;line-height:1;margin-top:3px;}
@@ -1217,13 +1217,16 @@ function renderKpis() {
     </div>
   </div>`;
 
-  const resto = [
+  const orden = [
     ['Valor cartera', EUR(act.reduce((s,i)=>s+(i.valor||0),0)), 'var(--gold)', 'valor de mercado', 'kpi-lg'],
-    ['Cashflow patrim./mes', EUR(cf.cashflowPatrimonial), cf.cashflowPatrimonial>=0?'var(--green)':'var(--red)', `+ ${EUR(cf.amortizacion)} amort.`, ''],
-    ['Cashflow/mes', EUR(cf.cashflow), cf.cashflow>=0?'var(--green)':'var(--red)', `ing. ${EUR(cf.ingresos)}`, ''],
-  ].map(([l,v,c,s,cls])=>`<div class="kpi ${cls||''}" style="--accent:${c}"><div class="kl">${l}</div><div class="kv" style="color:${c}">${v}</div><div class="ks">${s}</div></div>`).join('');
+  ].map(([l,v,c,s,cls])=>`<div class="kpi ${cls||''}" style="--accent:${c}"><div class="kl">${l}</div><div class="kv" style="color:${c}">${v}</div><div class="ks">${s}</div></div>`).join('')
+    + combo
+    + [
+      ['Cashflow patrim./mes', EUR(cf.cashflowPatrimonial), cf.cashflowPatrimonial>=0?'var(--green)':'var(--red)', `+ ${EUR(cf.amortizacion)} amort.`, ''],
+      ['Cashflow/mes', EUR(cf.cashflow), cf.cashflow>=0?'var(--green)':'var(--red)', `ing. ${EUR(cf.ingresos)}`, ''],
+    ].map(([l,v,c,s,cls])=>`<div class="kpi ${cls||''}" style="--accent:${c}"><div class="kl">${l}</div><div class="kv" style="color:${c}">${v}</div><div class="ks">${s}</div></div>`).join('');
 
-  document.getElementById('kpis').innerHTML = combo + resto;
+  document.getElementById('kpis').innerHTML = orden;
 }
 
 function renderFiltros() {
