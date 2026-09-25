@@ -1769,6 +1769,18 @@ function renderCharts() {
 // ═════════════════════════════════════════════════════════════════════════════
 // ALERTAS
 // ═════════════════════════════════════════════════════════════════════════════
+// Próxima fecha de revisión anual del IPC: mismo día/mes que el inicio del
+// contrato, cada año, a partir de esa fecha. Devuelve la primera que caiga
+// hoy o en el futuro.
+function proximaRevisionIPC(fechaInicio){
+  if(!fechaInicio) return null;
+  const hoy = new Date();
+  let prox = new Date(fechaInicio);
+  if(isNaN(prox)) return null;
+  while(prox < hoy){ prox = addMonths(prox, 12); }
+  return prox;
+}
+
 function renderAlertas() {
   const alertas = [];
   inmuebles.forEach(i=>{
@@ -1780,6 +1792,14 @@ function renderAlertas() {
     const h = calcularHipoteca(i);
     if(h.esCredito && h.diasVencimiento!=null && h.diasVencimiento<=180){
       alertas.push({inm:i, dias:h.diasVencimiento, tipo:'credito', capital:h.capitalPendiente, vencimiento:h.vencimiento});
+    }
+    // Revisión anual de IPC en contratos de larga estancia: avisar 2 meses (60 días) antes
+    if(i.tipo_alquiler==='larga' && i.fecha_inicio_contrato){
+      const revision = proximaRevisionIPC(i.fecha_inicio_contrato);
+      const dIpc = revision ? Math.ceil((revision-new Date())/86400000) : null;
+      if(dIpc!=null && dIpc>=0 && dIpc<=60){
+        alertas.push({inm:i, dias:dIpc, tipo:'ipc', revision});
+      }
     }
   });
   alertas.sort((a,b)=>a.dias-b.dias);
@@ -1810,10 +1830,12 @@ function renderAlertas() {
       const badgeTxt = a.dias<0 ? 'Vencido' : `${a.dias}d`;
       const cuerpo = a.tipo==='credito'
         ? `⚠️ Cuenta de crédito: al vencer se amortiza el capital íntegro <strong style="color:${col}">${EUR(a.capital)}</strong> · vence el <strong style="color:${col}">${fmtDate(a.vencimiento)}</strong>`
+        : a.tipo==='ipc'
+        ? `📈 Revisión anual de IPC el <strong style="color:${col}">${fmtDate(a.revision)}</strong> · Renta actual ${EUR(a.inm.alquiler)}/mes`
         : `Vence el <strong style="color:${col}">${fmtDate(a.inm.fecha_fin_contrato)}</strong> · Renta ${EUR(a.inm.alquiler)}/mes`;
       html += `<div class="inm-card" style="--estado-color:${col};margin-bottom:8px" onclick="goDetalle(${a.inm.id})">
         <div class="inm-header">
-          <div><div class="inm-n">${a.inm.nombre}${a.tipo==='credito'?' · 🏦 Cuenta de crédito':''}</div><div class="inm-d">${a.inm.ciudad} · ${a.inm.inquilino_nombre||'—'}</div></div>
+          <div><div class="inm-n">${a.inm.nombre}${a.tipo==='credito'?' · 🏦 Cuenta de crédito':a.tipo==='ipc'?' · 📈 Revisión IPC':''}</div><div class="inm-d">${a.inm.ciudad} · ${a.inm.inquilino_nombre||'—'}</div></div>
           <span class="badge b-alert">${badgeTxt}</span>
         </div>
         <div style="margin-top:8px;font-size:11.5px;color:var(--gray2)">${cuerpo}</div>
