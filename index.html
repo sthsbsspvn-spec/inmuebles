@@ -1781,6 +1781,17 @@ function proximaRevisionIPC(fechaInicio){
   return prox;
 }
 
+// Fecha de inicio del contrato a efectos de IPC: usa el campo "Inicio contrato"
+// de la ficha del inmueble si está relleno; si no, recurre al contrato PDF de
+// tipo Arrendamiento más reciente que se haya subido para ese inmueble.
+function fechaInicioContratoEfectiva(inm){
+  if(inm.fecha_inicio_contrato) return inm.fecha_inicio_contrato;
+  const cs = contratos
+    .filter(c=>c.inmueble_id===inm.id && c.tipo==='Arrendamiento' && c.fecha_inicio)
+    .sort((a,b)=>b.fecha_inicio.localeCompare(a.fecha_inicio));
+  return cs.length ? cs[0].fecha_inicio : null;
+}
+
 function renderAlertas() {
   const alertas = [];
   inmuebles.forEach(i=>{
@@ -1794,8 +1805,9 @@ function renderAlertas() {
       alertas.push({inm:i, dias:h.diasVencimiento, tipo:'credito', capital:h.capitalPendiente, vencimiento:h.vencimiento});
     }
     // Revisión anual de IPC en contratos de larga estancia: avisar 2 meses (60 días) antes
-    if(i.tipo_alquiler==='larga' && i.fecha_inicio_contrato){
-      const revision = proximaRevisionIPC(i.fecha_inicio_contrato);
+    if(i.tipo_alquiler==='larga'){
+      const fInicio = fechaInicioContratoEfectiva(i);
+      const revision = fInicio ? proximaRevisionIPC(fInicio) : null;
       const dIpc = revision ? Math.ceil((revision-new Date())/86400000) : null;
       if(dIpc!=null && dIpc>=0 && dIpc<=60){
         alertas.push({inm:i, dias:dIpc, tipo:'ipc', revision});
